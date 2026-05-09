@@ -36,13 +36,11 @@ function initSchema(db: Database.Database) {
       venue TEXT DEFAULT '',
       venue_fee INTEGER DEFAULT 0,
       sns_announcement TEXT DEFAULT '',
-      -- チェックリスト項目
       lecturer_invitation_sent INTEGER DEFAULT 0,
       photo_received INTEGER DEFAULT 0,
       abstract_300_requested INTEGER DEFAULT 0,
       abstract_800_requested INTEGER DEFAULT 0,
       receipt_issued INTEGER DEFAULT 0,
-      -- メモ
       notes TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       updated_at TEXT DEFAULT (datetime('now', 'localtime'))
@@ -53,8 +51,31 @@ function initSchema(db: Database.Database) {
     BEGIN
       UPDATE seminars SET updated_at = datetime('now', 'localtime') WHERE id = NEW.id;
     END;
+
+    CREATE TABLE IF NOT EXISTS participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'other',
+      email TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      payment_status TEXT NOT NULL DEFAULT 'unpaid',
+      attended INTEGER DEFAULT 0,
+      receipt_number TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TRIGGER IF NOT EXISTS update_participants_updated_at
+    AFTER UPDATE ON participants
+    BEGIN
+      UPDATE participants SET updated_at = datetime('now', 'localtime') WHERE id = NEW.id;
+    END;
   `);
 }
+
+// ─── Seminar ─────────────────────────────────────────────────────────────────
 
 export type Seminar = {
   id: number;
@@ -191,5 +212,77 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
 export function deleteSeminar(id: number): boolean {
   const db = getDb();
   const result = db.prepare('DELETE FROM seminars WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ─── Participant ─────────────────────────────────────────────────────────────
+
+export type ParticipantRole = 'dental_hygienist' | 'dentist' | 'other';
+export type PaymentStatus = 'unpaid' | 'paid';
+
+export type Participant = {
+  id: number;
+  seminar_id: number;
+  name: string;
+  role: ParticipantRole;
+  email: string;
+  phone: string;
+  payment_status: PaymentStatus;
+  attended: boolean;
+  receipt_number: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type ParticipantRow = Omit<Participant, 'attended'> & { attended: number };
+
+function rowToParticipant(row: ParticipantRow): Participant {
+  return { ...row, attended: Boolean(row.attended) };
+}
+
+export function getParticipantsBySeminar(seminarId: number): Participant[] {
+  const db = getDb();
+  const rows = db
+    .prepare('SELECT * FROM participants WHERE seminar_id = ? ORDER BY created_at ASC')
+    .all(seminarId) as ParticipantRow[];
+  return rows.map(rowToParticipant);
+}
+
+export function getParticipantById(id: number): Participant | null {
+  const db = getDb();
+  const row = db.prepare('SELECT * FROM participants WHERE id = ?').get(id) as ParticipantRow | undefined;
+  return row ? rowToParticipant(row) : null;
+}
+
+export type ParticipantInput = Omit<Participant, 'id' | 'created_at' | 'updated_at'>;
+
+export function createParticipant(input: ParticipantInput): Participant {
+  const db = getDb();
+  const result = db.prepare(`
+    INSERT INTO participants (seminar_id, name, role, email, phone, payment_status, attended, receipt_number, notes)
+    VALUES (@seminar_id, @name, @role, @email, @phone, @payment_status, @attended, @receipt_number, @notes)
+  `).run({ ...input, attended: input.attended ? 1 : 0 });
+  return getParticipantById(result.lastInsertRowid as number)!;
+}
+
+export function updateParticipant(id: number, input: Partial<Omit<ParticipantInput, 'seminar_id'>>): Participant | null {
+  const db = getDb();
+  const current = getParticipantById(id);
+  if (!current) return null;
+  const merged = { ...current, ...input };
+  db.prepare(`
+    UPDATE participants SET
+      name = @name, role = @role, email = @email, phone = @phone,
+      payment_status = @payment_status, attended = @attended,
+      receipt_number = @receipt_number, notes = @notes
+    WHERE id = @id
+  `).run({ ...merged, id, attended: merged.attended ? 1 : 0 });
+  return getParticipantById(id);
+}
+
+export function deleteParticipant(id: number): boolean {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM participants WHERE id = ?').run(id);
   return result.changes > 0;
 }

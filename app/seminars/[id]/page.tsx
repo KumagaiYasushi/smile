@@ -138,6 +138,22 @@ export default function SeminarDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {/* サブナビゲーション */}
+      <div className="flex gap-2 flex-wrap">
+        <Link
+          href={`/seminars/${id}/participants`}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all"
+        >
+          <span>👥</span> 参加者名簿
+        </Link>
+        <Link
+          href={`/seminars/${id}/email-templates`}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all"
+        >
+          <span>✉️</span> メール文面テンプレート
+        </Link>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
         {/* 左カラム：基本情報 */}
         <div className="lg:col-span-2 space-y-6">
