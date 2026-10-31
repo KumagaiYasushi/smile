@@ -1,21 +1,28 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { developmentDirectory } from './development.ts';
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'seminars.db');
 
 let db: Database.Database | null = null;
+let openedDirectory: string | null = null;
 
 export function getDb(): Database.Database {
-  if (db) return db;
+  const DB_DIR = developmentDirectory();
+  if (db) {
+    if (openedDirectory !== DB_DIR) throw new Error('Cannot switch database environments within a running process');
+    return db;
+  }
+  const DB_PATH = path.join(DB_DIR, 'seminars.db');
 
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
 
   db = new Database(DB_PATH);
+  openedDirectory = DB_DIR;
   db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
   initSchema(db);
   return db;
 }

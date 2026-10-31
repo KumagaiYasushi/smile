@@ -1,9 +1,12 @@
+import { denyUnauthenticated } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { getParticipantById, updateParticipant, deleteParticipant } from '@/lib/db';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
+  const denied = await denyUnauthenticated(_req);
+  if (denied) return denied;
   const { pid } = await params;
   const p = getParticipantById(Number(pid));
   if (!p) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
@@ -11,6 +14,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
+  const denied = await denyUnauthenticated(request);
+  if (denied) return denied;
   const { pid } = await params;
   try {
     const body = await request.json();
@@ -24,6 +29,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const denied = await denyUnauthenticated(_req);
+  if (denied) return denied;
   const { pid } = await params;
   const deleted = deleteParticipant(Number(pid));
   if (!deleted) return NextResponse.json({ error: '見つかりません' }, { status: 404 });

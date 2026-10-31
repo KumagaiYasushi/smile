@@ -1,0 +1,11 @@
+export type Contact = { name: string; mobile: string; email: string; workplace: string };
+export type ParticipantMaster = { id: number; current_name: string; current_mobile: string; current_email: string; current_workplace: string; version: number; created_at: string };
+export type Registration = { id: number; event_id: number; participant_id: number; match_status: 'EXACT' | 'NEW' | 'MISSING_KEYS' | 'AMBIGUOUS'; application_status: 'PENDING_REVIEW' | 'CONFIRMED'; confirmed_at: string | null; confirmed_by: number | null; created_at: string; snapshot: Contact; candidate_ids: number[]; attendance_status: 'UNVERIFIED' };
+export const APPLICATION_LABELS = { PENDING_REVIEW: '受付確認待ち', CONFIRMED: '受付確定' } as const;
+export const ADMISSION_LABELS = { OPEN: '受付確定可能', UNCONFIGURED: '定員未設定', FULL: '満席', DEADLINE_PASSED: '申込締切後' } as const;
+export type AdmissionSummary = { event_id: number; event_version: number; capacity: number | null; confirmed_count: number; pending_count: number; remaining: number | null; deadline: string | null; state: 'OPEN' | 'UNCONFIGURED' | 'FULL' | 'DEADLINE_PASSED' };
+export type AdmissionAudit = { id: number; actor_id: number; registration_id: number | null; action: 'CONFIRMED' | 'CAPACITY_CHANGED'; before_capacity: number | null; after_capacity: number | null; occurred_at: string };
+export type ContactRevision = { version: number; actor_id: number; changed_fields: (keyof Contact)[]; before: Contact | null; after: Contact; occurred_at: string };
+export type ParticipantDetail = ParticipantMaster & { registrations: (Registration & { event_title: string })[]; revisions: ContactRevision[] };
+export type ParticipantSearch = { items: (ParticipantMaster & { registration_count: number })[]; total: number; page: number; page_size: number };
+export const MATCH_LABELS = { EXACT: '氏名・携帯の一意一致', NEW: '新規参加者', MISSING_KEYS: '照合項目不足・新規', AMBIGUOUS: '複数候補・要確認' } as const;

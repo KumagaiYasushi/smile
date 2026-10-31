@@ -1,0 +1,13 @@
+export const EVENT_TYPES = { BASIC_COURSE: 'ベーシックコース', LECTURE: '講演会', SEMINAR: 'セミナー' } as const;
+export const TASK_STATUSES = { TODO: '未着手', IN_PROGRESS: '進行中', REVIEW: '確認待ち', DONE: '完了' } as const;
+export const TASK_PHASES = { PREPARATION: '開催前', DAY: '当日', FOLLOWUP: '開催後' } as const;
+export type EventType = keyof typeof EVENT_TYPES;
+export type TaskStatus = keyof typeof TASK_STATUSES;
+export type TaskPhase = keyof typeof TASK_PHASES;
+export type Member = { id: number; name: string };
+export type EventSession = { starts_at: string; ends_at: string };
+export type EventRecord = { id: number; type: EventType; title: string; overview: string; venue: string; lecturer: string; owner_id: number; capacity: number | null; fee: number | null; application_deadline: string | null; starts_at: string; version: number };
+export type TaskTemplate = { id: number; family: 'BASIC_COURSE' | 'LECTURE_SEMINAR'; title: string; relative_days: number; phase: TaskPhase; important: boolean; active: boolean; version: number };
+export type EventTask = { id: number; event_id: number; title: string; relative_days: number | null; due_on: string; due_mode: 'RELATIVE' | 'MANUAL'; phase: TaskPhase; important: boolean; status: TaskStatus; assignee_id: number | null; collaborator_ids: number[]; version: number };
+export type EventDetail = EventRecord & { sessions: EventSession[]; tasks: EventTask[] };
+export type SchedulePreview = { can_apply: false; changes: { id: number; title: string; before: string; proposed: string; needs_decision: boolean }[] };

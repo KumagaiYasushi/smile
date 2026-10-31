@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test --test-isolation=none tests/*.test.mts",
+    "dev:admin": "node --experimental-strip-types scripts/create-dev-admin.ts",
+    "test:http": "node --experimental-strip-types tests/http-smoke.mts",
+    "test:browser": "node --experimental-strip-types tests/browser-smoke.mts"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -22,7 +26,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "playwright": "1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"
-  }
+  },
+  "type": "module"
 }

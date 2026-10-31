@@ -1,7 +1,10 @@
+import { denyUnauthenticated } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllSeminars, createSeminar } from '@/lib/db';
 
 export async function GET() {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   try {
     const seminars = getAllSeminars();
     return NextResponse.json(seminars);
@@ -12,6 +15,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await denyUnauthenticated(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const seminar = createSeminar({
