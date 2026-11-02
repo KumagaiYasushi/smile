@@ -1,3 +1,4 @@
+import type {ExternalPayment} from './external-payment.ts';
 import type {AudienceRole} from './audience.ts';
 import type {ExternalSelection} from './external-lecturer.ts';
 import type { SessionMethods,RepeatFees } from './event-options.ts';
@@ -9,6 +10,7 @@ export const EVENT_TYPE_LABELS = {
   BASIC_COURSE: 'ベーシックコース',
   LECTURE: '講演会',
   SEMINAR: 'セミナー',
+  OTHER: 'その他',
 } as const;
 
 export type EventType = keyof typeof EVENT_TYPE_LABELS;
@@ -43,6 +45,7 @@ export type Seminar = {
   repeat_fees: RepeatFees;
   lecturer_role: 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' | null;
   external_lecturer:ExternalSelection;
+  external_payment:ExternalPayment;
   social_gathering: SocialGathering;
   name: string;
   dates: string[];
@@ -68,7 +71,7 @@ export type Seminar = {
   updated_at: string;
 };
 
-export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at' | 'audience_roles'> & {audience_roles?:AudienceRole[]|null};
+export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at' | 'audience_roles' | 'external_payment'> & {audience_roles?:AudienceRole[]|null;external_payment?:ExternalPayment};
 export type SeminarSubmission = Omit<SeminarInput,'delivery_method'> & { delivery_method?:DeliveryMethod|null; registration?:EventRegistration };
 
 export const CHECKLIST_ITEMS: { key: keyof Pick<Seminar, 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'>; label: string }[] = [

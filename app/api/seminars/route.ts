@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       event_times: body.event_times === undefined ? {} : body.event_times,
       lecturer_role: body.lecturer_role ?? null,
       external_lecturer:body.external_lecturer,
+      external_payment:body.external_payment,
       social_gathering: gathering,
       name: body.name ?? '',
       dates: body.dates ?? [],

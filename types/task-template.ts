@@ -16,7 +16,7 @@ export function parseTemplateInput(value: unknown, partial = false): Partial<Tem
   const result: Partial<TemplateInput> = {};
   if (!partial || Object.keys(common).length) Object.assign(result, parseTaskInput(common, partial));
   if (!partial) {
-    if (!isEventType(body.event_type)) throw new TaskError('イベント種別が不正です');
+    if (!isEventType(body.event_type)||body.event_type==='OTHER') throw new TaskError('イベント種別が不正です');
     result.event_type = body.event_type;
   }
   if ('relative_days' in body) {

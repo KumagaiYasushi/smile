@@ -22,6 +22,7 @@ import { smokeSessionDirectory } from './smoke-session-directory.mjs';
 import { smokeEventRegistration } from './smoke-event-registration.mjs';
 import { smokeExternalLunch } from './smoke-external-lunch.mjs';
 import { smokeEventDetails } from './smoke-event-details.mjs';
+import { smokeMeetingsHome } from './smoke-meetings-home.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
 const directory = mkdtempSync(join(tmpdir(), 'smile-auth-smoke-'));
@@ -72,7 +73,7 @@ try {
   assert.ok(ready, 'isolated server readiness');
   const guest = client();
   await guest.request('/login');
-  for (const path of ['/', '/dashboard', '/seminars/new', '/seminars/1', '/seminars/1/edit', '/seminars/1/participants', '/seminars/1/email-templates', '/seminars/1/participants/1/receipt', '/seminars/1/tasks', '/seminars/1/reschedule', '/seminars/1/staff-attendance', '/seminars/1/lunch', '/task-templates', '/venues', '/society-members', '/external-lecturers', '/admin/users']) {
+  for (const path of ['/', '/home', '/seminars/1/meetings', '/dashboard', '/seminars/new', '/seminars/1', '/seminars/1/edit', '/seminars/1/participants', '/seminars/1/email-templates', '/seminars/1/participants/1/receipt', '/seminars/1/tasks', '/seminars/1/reschedule', '/seminars/1/staff-attendance', '/seminars/1/lunch', '/task-templates', '/venues', '/society-members', '/external-lecturers', '/admin/users']) {
     const response = await guest.request(path, 'GET', undefined, 307);
     assert.ok(response.headers.get('location').endsWith('/login'));
   }
@@ -85,7 +86,7 @@ try {
     ['/api/task-templates', ['GET', 'POST']], ['/api/task-templates/1', ['PATCH']],
     ['/api/seminars/1/tasks/template-preview', ['POST']], ['/api/seminars/1/tasks/apply-templates', ['POST']],
     ['/api/seminars/1/schedule-preview', ['POST']], ['/api/seminars/1/reschedule', ['POST']], ['/api/seminars/1/schedule-history', ['GET']],
-    ['/api/dashboard', ['GET']],
+    ['/api/dashboard', ['GET']], ['/api/home',['GET']], ['/api/seminars/1/meetings',['GET','POST']],
     ['/api/seminars/1/staff-attendance', ['GET', 'POST']],
     ['/api/seminars/1/staff-attendance/1', ['PATCH', 'DELETE']],
     ['/api/seminars/1/staff-attendance/import', ['POST']],
@@ -130,6 +131,7 @@ try {
   await smokeEventRegistration(member);
   await smokeExternalLunch(member);
   await smokeEventDetails(member);
+  await smokeMeetingsHome(member);
   const seminar = await (await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空認証検証' }, 201)).json();
   const participant = await (await member.request(`/api/seminars/${seminar.id}/participants`, 'POST', { name: '架空参加者' }, 201)).json();
   const correct = `/api/seminars/${seminar.id}/participants/${participant.id}`;

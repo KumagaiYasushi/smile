@@ -27,7 +27,7 @@ try {
     assert.ok(formHtml.includes(label));
   }
 
-  for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR', undefined]) {
+  for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR', 'OTHER', undefined]) {
     const created = await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の種別検証イベント', event_type }, 201);
     ids.push(created.id);
     const path = `/api/seminars/${created.id}`;
@@ -37,7 +37,7 @@ try {
     assert.equal((await request(path)).event_type, expected);
     assert.equal((await request(path, 'PATCH', { venue: '架空会場' })).event_type, expected);
     assert.equal((await request(path, 'PATCH', { event_type: 'LECTURE' })).event_type, 'LECTURE');
-    for (const invalid of ['OTHER', 'toString', '', null, 1]) {
+    for (const invalid of ['INVALID', 'toString', '', null, 1]) {
       await request(path, 'PATCH', { event_type: invalid }, 400);
       await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '不正入力', event_type: invalid }, 400);
     }
@@ -48,7 +48,7 @@ try {
       assert.equal((await fetch(`${base}/seminars/${created.id}${suffix}`, { headers: { Cookie: cookie } })).status, 200);
     }
   }
-  for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) {
+  for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR', 'OTHER']) {
     for (const delivery_method of ['ONSITE', 'ONLINE', 'HYBRID']) {
       const created = await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の開催方法検証', event_type, delivery_method }, 201);
       ids.push(created.id);
@@ -67,7 +67,7 @@ try {
       assert.equal((await request(path)).delivery_method, 'ONSITE');
     }
   }
-  console.log('PASS: all nine event-type/delivery-method combinations, updates, list and invalid values');
+  console.log('PASS: all twelve event-type/delivery-method combinations, updates, list and invalid values');
   console.log('PASS: page responses, event-type options, three types, default compatibility, updates, list, invalid values');
 } finally {
   for (const id of ids) {

@@ -1,3 +1,5 @@
+import {allowOtherEvents} from './event-type-migration.ts';
+import {emptyExternalPayment,parseExternalPayment} from '../types/external-payment.ts';
 import {allAudienceRoles,parseAudienceRoles,audienceText} from '../types/audience.ts';
 import Database from 'better-sqlite3';
 import path from 'path';
@@ -95,7 +97,7 @@ function initSchema(db: Database.Database) {
     const columns = db.prepare('PRAGMA table_info(seminars)').all() as { name: string }[];
     if (!columns.some((column) => column.name === 'event_type')) {
       db.exec(`ALTER TABLE seminars ADD COLUMN event_type TEXT NOT NULL
-        DEFAULT 'SEMINAR' CHECK (event_type IN ('BASIC_COURSE', 'LECTURE', 'SEMINAR'))`);
+        DEFAULT 'SEMINAR' CHECK (event_type IN ('BASIC_COURSE', 'LECTURE', 'SEMINAR', 'OTHER'))`);
     }
     if (!columns.some((column) => column.name === 'delivery_method')) {
       // Do not infer a delivery method for historical records.
@@ -114,6 +116,7 @@ function initSchema(db: Database.Database) {
     if (!columns.some(column => column.name === 'event_times')) db.exec("ALTER TABLE seminars ADD COLUMN event_times TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(event_times))");
     if (!columns.some(column => column.name === 'session_delivery_methods')) db.exec("ALTER TABLE seminars ADD COLUMN session_delivery_methods TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(session_delivery_methods))");
     if (!columns.some(column => column.name === 'repeat_fees')) db.exec("ALTER TABLE seminars ADD COLUMN repeat_fees TEXT NOT NULL DEFAULT '{\"dental_hygienist\":null,\"dentist\":null,\"other\":null}' CHECK(json_valid(repeat_fees))");
+    if (!columns.some(column => column.name === 'external_payment')) db.exec("ALTER TABLE seminars ADD COLUMN external_payment TEXT NOT NULL DEFAULT '{\"travel\":null,\"honorarium\":null}' CHECK(json_valid(external_payment))");
     if (!columns.some(column => column.name === 'audience_roles')) db.exec("ALTER TABLE seminars ADD COLUMN audience_roles TEXT CHECK(audience_roles IS NULL OR json_valid(audience_roles))");
     if (!columns.some(column => column.name === 'external_lecturer')) db.exec("ALTER TABLE seminars ADD COLUMN external_lecturer TEXT NOT NULL DEFAULT '{\"status\":\"UNDECIDED\",\"id\":null,\"name\":\"\",\"facility\":\"\"}' CHECK(json_valid(external_lecturer))");
     if (!columns.some(column => column.name === 'lecturer_role')) db.exec("ALTER TABLE seminars ADD COLUMN lecturer_role TEXT CHECK(lecturer_role IN ('EXTERNAL_LECTURER','SOCIETY_LECTURER'))");
@@ -126,12 +129,14 @@ function initSchema(db: Database.Database) {
     if (!columns.some(column => column.name === 'payment_confirmed_by')) db.exec('ALTER TABLE participants ADD COLUMN payment_confirmed_by INTEGER');
   }).immediate();
   initReceiptSchema(db);
+  allowOtherEvents(db);
 }
 
 // ─── Seminar ─────────────────────────────────────────────────────────────────
 
-type SeminarRow = Omit<Seminar, 'audience_roles' | 'external_lecturer' | 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+type SeminarRow = Omit<Seminar, 'external_payment' | 'audience_roles' | 'external_lecturer' | 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
   external_lecturer:string;
+  external_payment:string;
   audience_roles:string|null;
   session_delivery_methods: string;
   repeat_fees: string;
@@ -150,6 +155,7 @@ function rowToSeminar(row: SeminarRow): Seminar {
   return {
     ...row,
     external_lecturer:JSON.parse(row.external_lecturer),
+    external_payment:JSON.parse(row.external_payment),
     audience_roles:row.audience_roles===null?null:JSON.parse(row.audience_roles),
     event_times: JSON.parse(row.event_times),
     session_delivery_methods: JSON.parse(row.session_delivery_methods),
@@ -193,13 +199,13 @@ export function createSeminar(input: SeminarInput): Seminar {
     INSERT INTO seminars (
       event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
       fee_dental_hygienist, fee_dentist, fee_other, target_participants, audience_roles,
-      venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role, session_delivery_methods, repeat_fees, external_lecturer,
+      venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role, session_delivery_methods, repeat_fees, external_lecturer, external_payment,
       lecturer_invitation_sent, photo_received, abstract_300_requested,
       abstract_800_requested, receipt_issued, notes
     ) VALUES (
       @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
       @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants, @audience_roles,
-      @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role, @session_delivery_methods, @repeat_fees, @external_lecturer,
+      @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role, @session_delivery_methods, @repeat_fees, @external_lecturer, @external_payment,
       @lecturer_invitation_sent, @photo_received, @abstract_300_requested,
       @abstract_800_requested, @receipt_issued, @notes
     )
@@ -211,6 +217,7 @@ export function createSeminar(input: SeminarInput): Seminar {
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
     external_lecturer:JSON.stringify(external),
+    external_payment:JSON.stringify(input.external_payment===undefined?emptyExternalPayment():parseExternalPayment(input.external_payment)),
     occurrence_type: occurrence,
     event_times: JSON.stringify(times),
     lecturer_role: input.lecturer_role ?? null,
@@ -257,13 +264,14 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
       venue = @venue, venue_id = @venue_id, venue_fee = @venue_fee, sns_announcement = @sns_announcement,
       lecturer_invitation_sent = @lecturer_invitation_sent, photo_received = @photo_received,
       abstract_300_requested = @abstract_300_requested, abstract_800_requested = @abstract_800_requested,
-      receipt_issued = @receipt_issued, notes = @notes, occurrence_type=@occurrence_type, event_times=@event_times, lecturer_role=@lecturer_role, session_delivery_methods=@session_delivery_methods, repeat_fees=@repeat_fees, external_lecturer=@external_lecturer
+      receipt_issued = @receipt_issued, notes = @notes, occurrence_type=@occurrence_type, event_times=@event_times, lecturer_role=@lecturer_role, session_delivery_methods=@session_delivery_methods, repeat_fees=@repeat_fees, external_lecturer=@external_lecturer, external_payment=@external_payment
     WHERE id = @id
   `).run({
     id,
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
     external_lecturer:JSON.stringify(input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer)),
+    external_payment:JSON.stringify(input.external_payment===undefined?current.external_payment:parseExternalPayment(input.external_payment)),
     occurrence_type: merged.occurrence_type,
     event_times: JSON.stringify(times),
     lecturer_role: merged.lecturer_role,

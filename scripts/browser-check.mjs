@@ -178,6 +178,66 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   async function onlyLunchTarget(editor,target) {
     for(const label of ['講師','外来講師','サポートメンバー','参加者','その他'])await editor.getByRole('checkbox',{name:label,exact:true}).setChecked(label===target);
   }
+  await step('打ち合わせの同時登録・登録後の変更・外来講師金額・HOME',async()=>{
+    await page.goto(`${base}/seminars/new`);
+    await page.getByLabel('イベント種別',{exact:true}).selectOption('OTHER');
+    await page.getByLabel('セミナー名',{exact:false}).fill('UI検証・打ち合わせ付きその他');
+    await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
+    await page.getByLabel('開催日 1',{exact:true}).fill('2027-12-01');
+    await page.getByLabel('2027-12-01の開催方法',{exact:true}).selectOption('HYBRID');
+    await expect(page.getByRole('heading',{name:'外来講師',exact:true})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'講師・スタッフ',exact:true})).toHaveCount(0);
+    await page.getByLabel('外来講師',{exact:true}).selectOption('YES');
+    await page.getByLabel('外来講師名・勤務施設名',{exact:true}).selectOption({label:'UI検証の外来講師 / UI検証の編集済み施設'});
+    await page.getByLabel('お車代（円）',{exact:true}).fill('5000');await page.getByLabel('謝礼（円）',{exact:true}).fill('50000');
+    const daily=page.getByRole('region',{name:'研究会名簿から出欠登録',exact:true});
+    await daily.getByRole('group',{name:'UI検証の架空講師の出欠',exact:true}).getByRole('radio',{name:'欠席',exact:true}).click();
+    const region=page.getByRole('region',{name:'打ち合わせの設定',exact:true});
+    for(const [index,method]of ['ONSITE','ONLINE','OTHER'].entries()){
+      await region.getByRole('button',{name:'＋ 打ち合わせを追加',exact:true}).click();
+      const plan=region.getByRole('group',{name:`打ち合わせ ${index+1}`,exact:true});
+      await plan.getByLabel('打ち合わせ日',{exact:true}).fill(['2027-11-01','2027-11-08','2027-11-15'][index]);
+      await plan.getByLabel('打ち合わせの開催方法',{exact:true}).selectOption(method);
+      await plan.getByRole('group',{name:'UI検証の架空講師の打ち合わせ出欠',exact:true}).getByRole('radio',{name:index===0?'出席':index===1?'欠席':'午前のみ',exact:true}).click();
+    }
+    const first=region.getByRole('group',{name:'打ち合わせ 1',exact:true});
+    await first.getByLabel('開始時刻（任意・日本時間）',{exact:true}).fill('10:00');
+    await first.getByRole('group',{name:'UI検証の架空講師の打ち合わせ出欠',exact:true}).getByRole('radio',{name:'出席',exact:true}).click();
+    await first.getByRole('group',{name:'UI検証の架空サポートの打ち合わせ出欠',exact:true}).getByRole('radio',{name:'午後のみ',exact:true}).click();
+    await layout('打ち合わせ登録画面');
+    await page.route(`${base}/api/seminars`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'検証用の打ち合わせ同時保存エラー'})}),{times:1});
+    await page.getByRole('button',{name:'登録する',exact:true}).click();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用の打ち合わせ同時保存エラー');
+    await expect(first.getByLabel('打ち合わせ日',{exact:true})).toHaveValue('2027-11-01');
+    await page.getByRole('button',{name:'登録する',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'UI検証・打ち合わせ付きその他',exact:true})).toBeVisible();
+    const sid=Number(new URL(page.url()).pathname.split('/')[2]);
+    assert.equal(db.prepare('SELECT count(*) n FROM event_meetings WHERE seminar_id=?').get(sid).n,3);
+    const payment=JSON.parse(db.prepare('SELECT external_payment FROM seminars WHERE id=?').get(sid).external_payment);assert.deepEqual(payment,{travel:5000,honorarium:50000});
+    assert.equal(JSON.parse(db.prepare('SELECT responses_json FROM event_staff WHERE seminar_id=?').get(sid).responses_json)['2027-12-01'],'ABSENT');
+    await page.getByRole('link',{name:'HOME',exact:true}).click();
+    const filters=page.getByRole('group',{name:'HOMEの種別で絞り込み',exact:true}),rows=page.getByRole('list',{name:'HOMEの日程一覧',exact:true}).getByRole('listitem');
+    await expect(rows).toHaveCount(4);await expect(rows.first()).toContainText('2027-11-01');
+    for(const name of ['ベーシックコース','講演会','セミナー','打ち合わせ','その他'])await expect(filters.getByRole('button',{name,exact:true})).toBeVisible();
+    await filters.getByRole('button',{name:'その他',exact:true}).click();await expect(rows).toHaveCount(1);await expect(rows.first()).toContainText('2027-12-01');
+    await filters.getByRole('button',{name:'打ち合わせ',exact:true}).click();await expect(rows).toHaveCount(3);
+    await layout('HOMEの日程一覧');await screenshot('home');
+    await rows.first().getByRole('link',{name:'UI検証・打ち合わせ付きその他',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'打ち合わせ',exact:true})).toBeVisible();
+    await expect(first.getByLabel('打ち合わせ日',{exact:true})).toHaveValue('2027-11-01');
+    await first.getByLabel('打ち合わせ日',{exact:true}).fill('2027-11-02');
+    const lecturer=first.getByRole('group',{name:'UI検証の架空講師の打ち合わせ出欠',exact:true});
+    await expect(lecturer.getByRole('radio',{name:'未登録',exact:true})).toBeChecked();
+    await lecturer.getByRole('radio',{name:'午前のみ',exact:true}).click();
+    await first.getByLabel('打ち合わせの開催方法',{exact:true}).selectOption('ONLINE');
+    page.once('dialog',dialog=>dialog.accept());await region.getByRole('group',{name:'打ち合わせ 3',exact:true}).getByRole('button',{name:'この打ち合わせを削除',exact:true}).click();
+    await page.getByRole('button',{name:'打ち合わせを保存',exact:true}).click();
+    await expect(page.getByRole('status')).toContainText('打ち合わせを保存しました');assert.equal(db.prepare('SELECT count(*) n FROM event_meetings WHERE seminar_id=?').get(sid).n,2);
+    await page.reload();await expect(lecturer.getByRole('radio',{name:'午前のみ',exact:true})).toBeChecked();
+    await page.goto(`${base}/seminars/${sid}/edit`);await expect(page.getByLabel('謝礼（円）',{exact:true})).toHaveValue('50000');await expect(first.getByLabel('打ち合わせ日',{exact:true})).toHaveValue('2027-11-02');
+    await page.goto(`${base}/seminars/${sid}`);page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'削除',exact:true}).click();await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
+    assert.equal(db.prepare('SELECT count(*) n FROM event_meetings').get().n,0);
+  });
   await step('登録画面の出欠・昼食の同時保存と登録後の追加変更',async()=>{
     await page.goto(`${base}/seminars/new`);
     const fields=await page.locator('form').locator('select,input[type="text"]').evaluateAll(elements=>elements.slice(0,3).map(e=>e.closest('label')?.textContent??document.querySelector(`label[for="${e.id}"]`)?.textContent??''));
@@ -366,8 +426,8 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByLabel('歯科医師・再受講1回（円）',{exact:true}).fill('550');
     await expect(page.getByLabel('2027-06-01の時刻を設定', { exact: true })).not.toBeChecked();
     await expect(page.getByLabel('2027-06-01の開始時刻', { exact: true })).toHaveCount(0);
-    await page.getByLabel('研究会講師（主担当・任意）', { exact: true }).selectOption({label:'UI検証の架空講師'});
-    await page.getByLabel('研究会サポートメンバー 1',{exact:true}).selectOption({label:'UI検証の架空サポート'});
+    await expect(page.getByLabel('研究会講師（主担当・任意）', { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('研究会サポートメンバー 1',{exact:true})).toHaveCount(0);
     await page.getByLabel('歯科医師（円）', { exact: true }).fill('10000');
     await page.getByLabel('懇親会の開催', { exact: true }).selectOption('HELD');
     await page.getByLabel('懇親会の開始日時（日本時間）', { exact: true }).fill('2027-06-01T18:30');
@@ -392,6 +452,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     // Preserve regression coverage for tasks generated before this feature was removed.
     const oldEvent=db.prepare('SELECT id,dates,event_type FROM seminars WHERE id=?').get(eventId);oldEvent.dates=JSON.parse(oldEvent.dates);
     createTemplateStore(db).createEvent(()=>oldEvent,1,true,oldEvent.dates[0]);
+    db.prepare('UPDATE seminars SET lecturer_name=?,lecturer_role=?,assistant_members=? WHERE id=?').run('UI検証の架空講師','SOCIETY_LECTURER',JSON.stringify(['UI検証の架空サポート']),eventId);
     assert.equal(db.prepare('SELECT occurrence_type FROM seminars WHERE id=?').get(eventId).occurrence_type, 'MULTIPLE');
     assert.equal(db.prepare('SELECT event_times FROM seminars WHERE id=?').get(eventId).event_times, '{}');
     await expect(page.getByText(/^2027年6月1日(?:現地開催|オンライン)/)).toBeVisible();

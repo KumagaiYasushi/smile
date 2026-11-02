@@ -9,8 +9,10 @@ import type { SocialGathering } from '@/types/social-gathering';
 import SocialGatheringEditor from '@/components/SocialGatheringEditor';
 import {AUDIENCE_LABELS,allAudienceRoles,audienceFromLegacy,audienceText,parseAudienceRoles} from '@/types/audience';
 import type {AudienceRole} from '@/types/audience';
+import MeetingFields from '@/components/MeetingFields';
+import {useMeetingDraft} from '@/components/useMeetingDraft';
+import {parseExternalPayment} from '@/types/external-payment';
 import VenuePicker from '@/components/VenuePicker';
-import SocietyMemberPicker from '@/components/SocietyMemberPicker';
 import { emptyRepeatFees, parseRepeatFees,parseSessionMethods } from '@/types/event-options';
 import type { SessionMethods } from '@/types/event-options';
 import StaffRosterBoard from '@/components/StaffRosterBoard';
@@ -32,6 +34,9 @@ type Props = {
 export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const router = useRouter();
   const registration=useEventRegistration(initial?.id);
+  const meetings=useMeetingDraft(initial?.id);
+  const [travel,setTravel]=useState(initial?.external_payment?.travel==null?'':String(initial.external_payment.travel));
+  const [honorarium,setHonorarium]=useState(initial?.external_payment?.honorarium==null?'':String(initial.external_payment.honorarium));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,14 +49,12 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [eventTimes, setEventTimes] = useState<EventTimes>(initial?.event_times ?? {});
   const [sessionMethods,setSessionMethods]=useState<SessionMethods>(initial ? {...Object.fromEntries((initial.dates??[]).filter(()=>initial.delivery_method).map(date=>[date,initial.delivery_method!])),...initial.session_delivery_methods} : {});
   const [repeatFees,setRepeatFees]=useState<Record<'dental_hygienist'|'dentist'|'other',string>>(()=>Object.fromEntries(Object.entries(initial?.repeat_fees??emptyRepeatFees()).map(([role,fee])=>[role,fee===null?'':String(fee)])) as Record<'dental_hygienist'|'dentist'|'other',string>);
-  const [lecturerRole, setLecturerRole] = useState(initial?.lecturer_role ?? '');
+  const lecturerRole=initial?.lecturer_role??'';
   const validDates = [...new Set(dates.filter(Boolean))];
   const allOnline = validDates.length ? validDates.every(date=>sessionMethods[date]==='ONLINE') : deliveryMethod==='ONLINE';
   const [content, setContent] = useState(initial?.content ?? '');
-  const [lecturerName, setLecturerName] = useState(initial?.lecturer_name ?? '');
-  const [assistants, setAssistants] = useState<string[]>(
-    initial?.assistant_members?.length ? initial.assistant_members : ['']
-  );
+  const lecturerName=initial?.lecturer_name??'';
+  const assistants=initial?.assistant_members??[];
   const [feeDH, setFeeDH] = useState(String(initial?.fee_dental_hygienist ?? ''));
   const [feeDr, setFeeDr] = useState(String(initial?.fee_dentist ?? ''));
   const [feeOther, setFeeOther] = useState(String(initial?.fee_other ?? ''));
@@ -71,14 +74,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   };
   const addDate = () => setDates([...dates, '']);
   const removeDate = (i: number) => setDates(dates.filter((_, idx) => idx !== i));
-
-  const updateAssistant = (i: number, value: string) => {
-    const next = [...assistants];
-    next[i] = value;
-    setAssistants(next);
-  };
-  const addAssistant = () => setAssistants([...assistants, '']);
-  const removeAssistant = (i: number) => setAssistants(assistants.filter((_, idx) => idx !== i));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,10 +97,11 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
       await onSubmit({
-        registration: registration.payload(validDates),
+        registration: {...(registration.payload(validDates)??{schedule:[...validDates].sort(),attendance:[],lunch:[]}),meetings:meetings.payload()},
         event_type: eventType,
         delivery_method: methods[validDates[0]]??deliveryMethod,
         external_lecturer: external,
+        external_payment:parseExternalPayment({travel:travel===''?null:Number(travel),honorarium:honorarium===''?null:Number(honorarium)}),
         occurrence_type: occurrence as OccurrenceType,
         session_delivery_methods: methods,
         repeat_fees: repeat,
@@ -224,45 +220,25 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
       </Section>
 
-      <Section title="講師・スタッフ">
-        <p className="text-sm text-slate-600">保存後の「講師・サポートの出欠予定」で、外来講師・研究会講師・研究会サポートメンバーを複数名登録できます。</p>
+      <Section title="外来講師">
         <Field label="外来講師"><select value={external.status==='YES'?'YES':'NO'} onChange={e=>setExternal({...external,status:e.target.value as 'YES'|'NO'})} className={inputClass}><option value="NO">なし</option><option value="YES">あり</option></select></Field>
-        {external.status==='YES'&&<ExternalLecturerPicker value={external} onChange={setExternal}/>}
-        <SocietyMemberPicker role="SOCIETY_LECTURER" label="研究会講師（主担当・任意）" value={lecturerRole==='SOCIETY_LECTURER'?lecturerName:''} onChange={name=>{setLecturerRole('SOCIETY_LECTURER');setLecturerName(name);}}/>
-
-        <Field label="研究会サポートメンバー">
-          <div className="space-y-2">
-            {assistants.map((a, i) => (
-              <div key={i} className="flex gap-2 items-center">
-                <div className="min-w-0 flex-1"><SocietyMemberPicker role="SOCIETY_SUPPORT" label={`研究会サポートメンバー ${i+1}`} value={a} onChange={value=>updateAssistant(i,value)}/></div>
-                {assistants.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeAssistant(i)}
-                    className="text-slate-400 hover:text-red-500 transition-colors text-lg leading-none px-1"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={addAssistant}
-              className="text-sm text-sky-600 hover:text-sky-800 font-medium"
-            >
-              ＋ メンバーを追加
-            </button>
-          </div>
-        </Field>
+        {external.status==='YES'&&<><ExternalLecturerPicker value={external} onChange={setExternal}/>
+          <div className="grid gap-4 sm:grid-cols-2"><Field label="お車代（円）"><input aria-label="お車代（円）" type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={travel} onChange={e=>setTravel(e.target.value)} className={inputClass}/></Field><Field label="謝礼（円）"><input aria-label="謝礼（円）" type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={honorarium} onChange={e=>setHonorarium(e.target.value)} className={inputClass}/></Field></div><p className="text-xs text-slate-500">空欄は未定、0は0円として保存します。</p>
+        </>}
       </Section>
 
       <div className="space-y-3">
         {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}
         {registration.error&&<p role="alert" className="text-sm text-red-700">{registration.error}</p>}
         {!registration.loading&&<button type="button" disabled={saving} onClick={registration.reload} className="text-sm text-sky-800 underline">出欠・昼食を再取得</button>}
-        {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
+        {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
       </div>
+
+      <Section title="打ち合わせ">
+        {meetings.error&&<p role="alert" className="text-red-700">{meetings.error}</p>}
+        {meetings.loading?<p>打ち合わせを読み込み中…</p>:<button type="button" onClick={meetings.reload} disabled={saving} className="text-sm text-sky-800 underline">打ち合わせを再取得</button>}
+        <MeetingFields plans={meetings.plans} members={meetings.members} disabled={saving||meetings.loading||!!meetings.error} onAdd={meetings.add} onChange={meetings.update} onRemove={meetings.remove}/>
+      </Section>
 
       <Section title="参加費">
         {occurrence==='MULTIPLE'&&<h3 className="font-medium">複数回合計金額</h3>}
@@ -334,7 +310,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="昼食の手配">
-        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch} getCounts={date=>registration.getLunchCounts(date,external)}/>
+        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading||meetings.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch} getCounts={date=>registration.getLunchCounts(date,external)}/>
         {initial?.id && <Link href={`/seminars/${initial.id}/lunch`} className="inline-block text-sm text-sky-800 underline">昼食の手配を登録・確認する</Link>}
       </Section>
 
@@ -365,7 +341,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </button>
         <button
           type="submit"
-          disabled={saving||registration.loading}
+          disabled={saving||registration.loading||meetings.loading}
           className="px-6 py-2.5 rounded-lg bg-sky-700 text-white text-sm font-bold hover:bg-sky-600 disabled:opacity-50 transition-colors"
         >
           {saving ? '保存中...' : submitLabel}

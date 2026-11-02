@@ -1,10 +1,11 @@
+import {createMeetingStore} from './meetings.ts';
 import type Database from 'better-sqlite3';
 import { createStaffRosterStore } from './staff-roster.ts';
 import { createLunchStore } from './lunch.ts';
 import { TaskError,parseVersion } from '../types/task.ts';
 
 export function createEventRegistrationStore(db:Database.Database) {
-  const roster=createStaffRosterStore(db),lunch=createLunchStore(db);
+  const roster=createStaffRosterStore(db),lunch=createLunchStore(db),meetings=createMeetingStore(db);
   function object(value:unknown):Record<string,unknown> {
     if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('出欠・昼食の入力形式が不正です');
     return value as Record<string,unknown>;
@@ -13,7 +14,7 @@ export function createEventRegistrationStore(db:Database.Database) {
   function apply(seminarId:number,value:unknown,actorId:number) {
     if(value===undefined)return;
     const body=object(value);
-    if(Object.keys(body).some(key=>!['schedule','attendance','lunch'].includes(key)))throw new TaskError('出欠・昼食に変更できない項目が含まれています');
+    if(Object.keys(body).some(key=>!['schedule','attendance','lunch','meetings'].includes(key)))throw new TaskError('出欠・昼食に変更できない項目が含まれています');
     const current=roster.list(seminarId);
     if(!Array.isArray(body.schedule)||JSON.stringify(body.schedule)!==JSON.stringify(current.dates))throw new TaskError('開催日が変更されています。出欠・昼食を再確認してください',409);
     if(!Array.isArray(body.attendance)||body.attendance.length>1000||!Array.isArray(body.lunch)||body.lunch.length>100)throw new TaskError('出欠・昼食の件数または入力形式が不正です');
@@ -48,6 +49,7 @@ export function createEventRegistrationStore(db:Database.Database) {
         } else lunch.update(seminarId,planId,{...object(input.data),schedule:body.schedule,version},actorId);
       } else throw new TaskError('昼食の変更形式が不正です');
     }
+    if(body.meetings!==undefined)meetings.apply(seminarId,body.meetings,actorId);
   }
   return {
     save<T extends {id:number}>(saveEvent:()=>T,registration:unknown,actorId:number):T {

@@ -79,7 +79,7 @@ export default function TemplatesPage() {
     <p className="text-sm text-slate-600">運営実績に合わせたタスクと期限の日数を、イベント種別ごとに登録できます。テンプレートからのタスク生成は現在停止しています。保存済みのテンプレートは保管・編集でき、既存のタスクには変更を反映しません。</p>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
-    <label className="block max-w-sm text-sm">イベント種別<select aria-label="イベント種別" disabled={editing !== undefined} value={type} onChange={(e) => setType(e.target.value as EventType)} className={fieldClass}>{Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+    <label className="block max-w-sm text-sm">イベント種別<select aria-label="イベント種別" disabled={editing !== undefined} value={type} onChange={(e) => setType(e.target.value as EventType)} className={fieldClass}>{Object.entries(EVENT_TYPE_LABELS).filter(([key])=>key!=='OTHER').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     <div className="flex flex-wrap gap-3"><button disabled={busy || loading || editing !== undefined} onClick={() => { setEditing(null); setNotice(''); }} className="rounded-lg bg-sky-800 px-4 py-2 text-white disabled:opacity-50">＋ テンプレートを追加</button><button disabled={busy} onClick={reload} className="rounded-lg border bg-white px-4 py-2">最新の内容を取得</button></div>
     {editing !== undefined && <TemplateEditor key={editing?.id ?? 'new'} initial={editing} type={type} onSave={save} onCancel={() => setEditing(undefined)} />}
     {loading && <p>読み込み中…</p>}

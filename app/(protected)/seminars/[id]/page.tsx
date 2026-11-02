@@ -143,6 +143,7 @@ export default function SeminarDetailPage({ params }: Props) {
         >
           <span>👥</span> 参加者名簿
         </Link>
+        <Link href={`/seminars/${id}/meetings`} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">打ち合わせ</Link>
         <Link
           href={`/seminars/${id}/email-templates`}
           className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all"
@@ -209,6 +210,9 @@ export default function SeminarDetailPage({ params }: Props) {
             </dl>
           </Card>
 
+          <Card title="外来講師への支払い設定">
+            <dl className="space-y-3"><Row label="お車代">{seminar.external_payment.travel===null?'未定':`¥${seminar.external_payment.travel.toLocaleString()}`}</Row><Row label="謝礼">{seminar.external_payment.honorarium===null?'未定':`¥${seminar.external_payment.honorarium.toLocaleString()}`}</Row></dl>
+          </Card>
           <Card title="懇親会">
             <SocialGatheringDetails value={seminar.social_gathering}/>
           </Card>

@@ -24,9 +24,9 @@ function inTemporaryDatabase(script) {
   }
 }
 
-test('only the three specified event types are accepted', () => {
-  for (const value of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) assert.ok(isEventType(value));
-  for (const value of [undefined, null, '', 'lecture', 'OTHER', 'toString', '__proto__', 1, {}]) {
+test('the four supported event types are accepted', () => {
+  for (const value of ['BASIC_COURSE', 'LECTURE', 'SEMINAR', 'OTHER']) assert.ok(isEventType(value));
+  for (const value of [undefined, null, '', 'lecture', 'INVALID', 'toString', '__proto__', 1, {}]) {
     assert.equal(isEventType(value), false);
   }
 });
@@ -40,7 +40,7 @@ test('fresh database stores every type and preserves it during unrelated edits a
       venue_fee: 0, sns_announcement: '', lecturer_invitation_sent: false, photo_received: false,
       abstract_300_requested: false, abstract_800_requested: false, receipt_issued: false, notes: '',
     };
-    for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) {
+    for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR', 'OTHER']) {
       const created = createSeminar({ ...input, event_type });
       assert.equal(created.delivery_method, null);
       assert.equal(getSeminarById(created.id).event_type, event_type);
@@ -53,12 +53,12 @@ test('fresh database stores every type and preserves it during unrelated edits a
       assert.equal(getSeminarById(created.id).venue, '配信拠点');
       assert.equal(getSeminarById(created.id).venue_fee, 1000);
     }
-    assert.throws(() => createSeminar({ ...input, event_type: 'OTHER' }), /CHECK constraint/);
+    assert.throws(() => createSeminar({ ...input, event_type: 'INVALID' }), /CHECK constraint/);
     assert.throws(() => updateSeminar(1, { event_type: null }), /NOT NULL/);
     assert.throws(() => updateSeminar(1, { delivery_method: 'OTHER' }), /CHECK constraint/);
     getDb().close();
     const reopened = new Database('data/seminars.db');
-    assert.equal(reopened.prepare('SELECT count(*) n FROM seminars').get().n, 3);
+    assert.equal(reopened.prepare('SELECT count(*) n FROM seminars').get().n, 4);
     assert.ok(reopened.prepare('SELECT event_type FROM seminars').all().every(r => r.event_type === 'LECTURE'));
     assert.ok(reopened.prepare('SELECT delivery_method FROM seminars').all().every(r => r.delivery_method === 'HYBRID'));
     reopened.close();
@@ -78,7 +78,8 @@ test('legacy database migrates without losing IDs, dates, timestamps, checklist 
         venue TEXT DEFAULT '', venue_fee INTEGER DEFAULT 0, sns_announcement TEXT DEFAULT '',
         lecturer_invitation_sent INTEGER DEFAULT 0, photo_received INTEGER DEFAULT 0,
         abstract_300_requested INTEGER DEFAULT 0, abstract_800_requested INTEGER DEFAULT 0,
-        receipt_issued INTEGER DEFAULT 0, notes TEXT DEFAULT '', created_at TEXT, updated_at TEXT
+        receipt_issued INTEGER DEFAULT 0, notes TEXT DEFAULT '', created_at TEXT, updated_at TEXT,
+        event_type TEXT NOT NULL DEFAULT 'SEMINAR' CHECK(event_type IN ('BASIC_COURSE','LECTURE','SEMINAR'))
       );
       INSERT INTO seminars (id, name, dates, photo_received, created_at, updated_at)
       VALUES (42, '架空の既存セミナー', '["2027-01-01"]', 1, '2026-01-01', '2026-02-01');
