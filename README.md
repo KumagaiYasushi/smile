@@ -25,3 +25,5 @@
 登録・編集画面で出欠と昼食を一緒に入力する操作は [イベント登録時の出欠・昼食](docs/event-registration-extras.md) を参照してください。
 
 打ち合わせの日程・出欠、HOMEの日程一覧、外来講師のお車代・謝礼は [打ち合わせ・HOME](docs/meetings-home.md) を参照してください。
+
+研究会カレンダーの表示と、WEBページ管理者向け開催要項PDFの保存は [カレンダー・開催要項PDF](docs/calendar-outline.md) を参照してください。

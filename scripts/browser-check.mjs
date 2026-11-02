@@ -144,6 +144,22 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByRole('article')).toHaveCount(1);
     await layout('会場台帳'); await screenshot('venues');
   });
+  await step('HOMEとダッシュボードの研究会カレンダー表示切替',async()=>{
+    for(const path of ['/home','/dashboard']){
+      await page.goto(`${base}${path}`);
+      const calendar=page.getByRole('region',{name:'歯周基本治療研究会カレンダー',exact:true});
+      await expect(calendar).toBeVisible();
+      const frame=calendar.locator('iframe');
+      let src=new URL(await frame.getAttribute('src'));assert.equal(src.searchParams.get('src'),'ll3g7e3vbkom98qssfokalpl58@group.calendar.google.com');assert.equal(src.searchParams.get('ctz'),'Asia/Tokyo');assert.equal(src.searchParams.get('mode'),'MONTH');
+      await calendar.getByRole('button',{name:'予定一覧',exact:true}).click();
+      src=new URL(await frame.getAttribute('src'));assert.equal(src.searchParams.get('mode'),'AGENDA');
+      await expect(calendar.getByRole('button',{name:'予定一覧',exact:true})).toHaveAttribute('aria-pressed','true');
+      await calendar.getByRole('button',{name:'カレンダーを再表示',exact:true}).click();
+      await calendar.getByRole('button',{name:'月表示',exact:true}).click();
+      await expect(calendar.getByRole('link',{name:'iCal形式を開く',exact:true})).toHaveAttribute('href','https://calendar.google.com/calendar/ical/ll3g7e3vbkom98qssfokalpl58%40group.calendar.google.com/public/basic.ics');
+      await layout('研究会カレンダー');
+    }
+  });
   await step('外来講師リストの初期値・追加・編集',async()=>{
     await page.getByRole('link',{name:'外来講師リスト',exact:true}).click();
     for(const [name,facility] of [['長谷剛志','能登総合病院'],['橋本二郎','東京大学生物学講座']]){
@@ -966,6 +982,28 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByRole('button', { name: '✓ コピー済み', exact: true })).toBeVisible();
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await editor.inputValue());
     await layout('メール文面');
+  });
+  await step('開催要項プレビュー・PDFダウンロード・非公開項目の除外',async()=>{
+    await page.goto(`${base}/seminars/${eventId}`);
+    const response=await page.request.patch(`${base}/api/seminars/${eventId}`,{headers:{Origin:base},data:{external_payment:{travel:7654321,honorarium:1234567},notes:'WEB非公開の運営メモ'}});assert.equal(response.status(),200);
+    const [outline]=await Promise.all([context.waitForEvent('page'),page.getByRole('link',{name:'開催要項PDF',exact:true}).click()]);
+    await expect(outline.getByRole('heading',{name:'開催要項PDF',exact:true})).toBeVisible();
+    const preview=outline.getByRole('article',{name:'開催要項プレビュー',exact:true});
+    await expect(preview).toContainText(eventName);await expect(preview).toContainText('歯科衛生士');
+    for(const text of ['WEB非公開の運営メモ','7,654,321','1,234,567','お車代','謝礼','予算総額','参加人数'])await expect(preview).not.toContainText(text);
+    await layout('開催要項プレビュー',outline);await screenshot('event-outline',outline);
+    // A failed PDF response preserves the preview and can be retried.
+    await outline.route(`${base}/api/seminars/${eventId}/outline/pdf`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'検証用のPDF作成エラー'})}),{times:1});
+    await outline.getByRole('button',{name:'PDFをダウンロード',exact:true}).click();
+    await expect(outline.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用のPDF作成エラー');await expect(preview).toContainText(eventName);
+    const [download]=await Promise.all([outline.waitForEvent('download'),outline.getByRole('button',{name:'PDFをダウンロード',exact:true}).click()]);
+    assert.match(download.suggestedFilename(),/_開催要項\.pdf$/);
+    const pdfPath=join(output,String(page.viewportSize().width),'event-outline.pdf');mkdirSync(join(output,String(page.viewportSize().width)),{recursive:true});await download.saveAs(pdfPath);
+    const info=execFileSync('pdfinfo',[pdfPath],{encoding:'utf8'}),text=execFileSync('pdftotext',['-layout',pdfPath,'-'],{encoding:'utf8'});
+    assert.match(info,/Page size:\s+595\.28 x 841\.89 pts \(A4\)/);assert.match(info,/JavaScript:\s+no/);assert.ok(text.includes('開催要項'));assert.ok(text.includes('歯周基本治療研究会'));assert.ok(text.includes(eventName));assert.ok(text.includes('歯科衛生士'));
+    for(const privateText of ['WEB非公開の運営メモ','7,654,321','1,234,567','予算総額','参加人数'])assert.ok(!text.includes(privateText));
+    if(method==='ONLINE')assert.ok(!text.includes('UI検証の会場・配信拠点'));
+    await outline.close();
   });
   await step('削除失敗時の表示保持と参加者・タスク・イベント削除', async () => {
     await page.goto(`${base}/seminars/${eventId}/participants`);

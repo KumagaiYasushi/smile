@@ -143,6 +143,7 @@ export default function SeminarDetailPage({ params }: Props) {
         >
           <span>👥</span> 参加者名簿
         </Link>
+        <Link href={`/seminars/${id}/outline`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">開催要項PDF</Link>
         <Link href={`/seminars/${id}/meetings`} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">打ち合わせ</Link>
         <Link
           href={`/seminars/${id}/email-templates`}

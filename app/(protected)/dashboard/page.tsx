@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import StudyCalendar from '@/components/StudyCalendar';
 import { apiJson } from '@/lib/client-api';
 import { DASHBOARD_FILTER_LABELS } from '@/types/dashboard';
 import type { DashboardData, DashboardFilter } from '@/types/dashboard';
@@ -40,6 +41,7 @@ export default function DashboardPage() {
       <button disabled={loading} onClick={reload} className="rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50">最新の内容を取得</button>
     </div>
     <div className="flex flex-wrap gap-4 text-sm"><Link href="/" className="text-sky-700 underline">イベント一覧へ</Link><Link href="/task-templates" className="text-sky-700 underline">タスクテンプレート</Link></div>
+    <StudyCalendar/>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}
     {data && <p className="text-sm text-slate-500">基準日：{data.as_of_date}（日本時間）・イベント {data.event_count} 件・未完了タスク {data.counts.ALL} 件</p>}
     <label className="block max-w-sm text-sm font-medium">直近の重要タスクの表示期間
