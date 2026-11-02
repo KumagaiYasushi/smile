@@ -3,6 +3,9 @@ import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { hostedVerificationSettings } from '../lib/hosted-verification.ts';
 
 const password = randomBytes(24).toString('base64url');
@@ -35,4 +38,37 @@ test('invalid hosted settings fail before setup and never print the supplied pas
   const result = spawnSync(process.execPath, [script], { env, encoding: 'utf8' });
   assert.equal(result.status, 1);
   assert.ok(!`${result.stdout}${result.stderr}`.includes(password));
+  assert.match(result.stderr, /起動設定エラー: SMILE_VERIFICATION_EMAIL/);
+});
+
+test('blank optional origin falls back to Render; root trailing slash is canonicalized without allowing paths or credentials', () => {
+  for (const patch of [{ SMILE_VERIFICATION_ORIGIN: '' }, { SMILE_VERIFICATION_ORIGIN: '   ' },
+    { RENDER_EXTERNAL_URL: 'https://test-service.example.invalid/' }, { SMILE_VERIFICATION_ORIGIN: ' https://test-service.example.invalid/ ' }]) {
+    assert.equal(hostedVerificationSettings({ ...valid, ...patch }).runtime.SMILE_VERIFICATION_ORIGIN, 'https://test-service.example.invalid');
+  }
+  for (const origin of ['https://example.invalid/path', 'https://example.invalid/?key=value', 'https://example.invalid/#fragment', 'https://user:secret@example.invalid/']) {
+    assert.throws(() => hostedVerificationSettings({ ...valid, SMILE_VERIFICATION_ORIGIN: origin }));
+  }
+});
+
+test('startup diagnostics identify every invalid setting without disclosing its value or the password', () => {
+  const script = fileURLToPath(new URL('../scripts/start-hosted-verification.mjs', import.meta.url));
+  const patches = [
+    [{ SMILE_VERIFICATION_EMAIL: 'invalid-email-marker' }, 'SMILE_VERIFICATION_EMAIL', 'invalid-email-marker'],
+    [{ SMILE_VERIFICATION_PASSWORD: 'short' }, 'SMILE_VERIFICATION_PASSWORD', 'short'],
+    [{ SMILE_VERIFICATION_ORIGIN: 'https://user:private-secret@example.invalid' }, 'SMILE_VERIFICATION_ORIGIN', 'private-secret'],
+    [{ SMILE_VERIFICATION_DATA_DIR: '' }, 'SMILE_VERIFICATION_DATA_DIR', password],
+  ];
+  const directory = mkdtempSync(join(tmpdir(), 'smile-invalid-settings-'));
+  try { for (const [patch, key, secret] of patches) {
+    const env = { ...process.env, ...valid, SMILE_VERIFICATION_DATA_DIR: directory, ...patch };
+    // The CA/proxy examples above are only configuration preservation fixtures.
+    delete env.NODE_EXTRA_CA_CERTS; delete env.HTTPS_PROXY;
+    const result = spawnSync(process.execPath, [script], { env, encoding: 'utf8', timeout: 5000 });
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes(key));
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(secret));
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(password));
+    assert.equal(readdirSync(directory).length, 0);
+  } } finally { rmSync(directory, { recursive: true, force: true }); }
 });
