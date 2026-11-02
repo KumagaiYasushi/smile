@@ -86,6 +86,7 @@ try {
     ['/api/seminars/1/staff-attendance', ['GET', 'POST']],
     ['/api/seminars/1/staff-attendance/1', ['PATCH', 'DELETE']],
     ['/api/seminars/1/staff-attendance/import', ['POST']],
+    ['/api/seminars/1/staff-attendance/roster', ['POST']],
     ['/api/seminars/1/lunch', ['GET', 'POST']], ['/api/seminars/1/lunch/1', ['PATCH', 'DELETE']],
     ['/api/seminars/1/participants/1/receipt', ['GET', 'POST']],
     ['/api/society-members', ['GET', 'POST']], ['/api/society-members/1', ['PATCH']],

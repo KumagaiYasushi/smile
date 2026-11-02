@@ -49,6 +49,11 @@ export function createStaffAttendanceStore(db: Database.Database) {
     }
   }).immediate();
 
+  db.exec(`CREATE TABLE IF NOT EXISTS event_staff_directory_links (
+    person_id INTEGER PRIMARY KEY REFERENCES event_staff(id) ON DELETE CASCADE,
+    seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,
+    member_id INTEGER NOT NULL, UNIQUE(seminar_id,member_id));`);
+
   function event(id: number) {
     const row = db.prepare('SELECT * FROM seminars WHERE id=?').get(id) as EventRow | undefined;
     if (!row) throw new TaskError('イベントが見つかりません', 404);
@@ -122,6 +127,9 @@ export function createStaffAttendanceStore(db: Database.Database) {
         const data = input(fields, event(seminarId).dates);
         if (duplicate(seminarId, data, id)) throw new TaskError('同じ役割・氏名が登録されています', 409);
         const responses = { ...current.responses, ...data.responses };
+        if (current.name !== data.name || current.role !== data.role) {
+          db.prepare('DELETE FROM event_staff_directory_links WHERE person_id=?').run(id);
+        }
         db.prepare(`UPDATE event_staff SET name=?,role=?,responses_json=?,version=version+1,
           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE seminar_id=? AND id=?`)
           .run(data.name, data.role, JSON.stringify(responses), seminarId, id);

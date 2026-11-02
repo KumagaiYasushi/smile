@@ -50,6 +50,22 @@ export async function smokeStaffAttendance(client) {
       assert.equal(lecturer.responses[newDates[0]], 'TENTATIVE');
       await client.request(`${path}/${manual.id}`, 'DELETE', { version: manual.version });
       assert.equal((await json(path)).people.length, 2);
+      let roster=(await json(path)).roster;
+      assert.equal(roster.rows.length,10);
+      let row=roster.rows[0];
+      const radio={member_id:row.member_id,member_version:row.member_version,version:row.version,date:newDates[0],response:'ATTENDING',schedule:newDates};
+      const radioPath=`${path}/roster`;
+      await client.request(radioPath,'POST',radio,403,{Origin:'https://untrusted.invalid'});
+      const saved=await json(radioPath,'POST',radio);
+      assert.equal(saved.person.responses[newDates[0]],'ATTENDING');
+      await client.request(radioPath,'POST',radio,409);
+      row=saved.roster.rows[0];
+      const absent=await json(radioPath,'POST',{...radio,version:row.version,response:'ABSENT'});
+      assert.equal(absent.person.responses[newDates[0]],'ABSENT');
+      const otherRoster=(await json(`/api/seminars/${other.id}/staff-attendance`)).roster;
+      assert.equal(otherRoster.rows[0].person_id,null);
+      await client.request(radioPath,'POST',{...radio,version:absent.person.version,actor_id:999},400);
+
     }
     console.log('PASS: all three event types support staff plans, per-date answers, imports, scope, versions, CSRF, audit and changed-date confirmation');
   } finally {

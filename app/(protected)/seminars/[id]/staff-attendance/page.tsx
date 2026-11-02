@@ -2,6 +2,8 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import StaffRosterBoard from '@/components/StaffRosterBoard';
+import type { StaffRoster } from '@/types/staff-roster';
 import SocietyMemberPicker from '@/components/SocietyMemberPicker';
 import { apiJson } from '@/lib/client-api';
 import { STAFF_ROLE_LABELS, STAFF_SELECTABLE_ROLE_LABELS, STAFF_RESPONSE_LABELS, attendanceDateKeys, attendanceDateLabel } from '@/types/staff-attendance';
@@ -9,7 +11,7 @@ import type { StaffPerson, StaffInput, StaffRole, StaffResponse, StaffAttendance
 
 const inputClass = 'mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const buttonClass = 'rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-50';
-type Result = StaffAttendance & { history: StaffHistory[] };
+type Result = StaffAttendance & { history: StaffHistory[]; roster:StaffRoster };
 
 function AttendanceEditor({ initial, dates, onSave, onCancel }: {
   initial: StaffPerson | null; dates: string[]; onSave: (input: StaffInput) => Promise<void>; onCancel: () => void;
@@ -61,6 +63,7 @@ export default function StaffAttendancePage({ params }: { params: Promise<{ id: 
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rosterBusy,setRosterBusy]=useState(false);
   const [editor, setEditor] = useState<StaffPerson | null | undefined>(undefined);
   const [filter, setFilter] = useState<StaffRole | 'ALL'>('ALL');
   const load = useCallback(async () => { const result: Result = await apiJson(path); setData(result); }, [path]);
@@ -87,12 +90,12 @@ export default function StaffAttendancePage({ params }: { params: Promise<{ id: 
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {message && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{message}</p>}
     <div className="flex flex-wrap gap-2">
-      <button disabled={busy || editor !== undefined} onClick={() => { setMessage(''); setEditor(null); }} className={buttonClass}>＋ メンバーを追加</button>
-      <button disabled={busy || !data || editor !== undefined} onClick={() => action(async () => {
+      <button disabled={busy || rosterBusy || editor !== undefined} onClick={() => { setMessage(''); setEditor(null); }} className={buttonClass}>＋ メンバーを追加</button>
+      <button disabled={busy || rosterBusy || !data || editor !== undefined} onClick={() => action(async () => {
         const result = await apiJson(`${path}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ schedule: data!.dates }) });
         await load(); setMessage(`${result.added}名を取り込みました。登録済みの出欠予定は保持しています。`);
       })} className={buttonClass}>登録済みの講師・スタッフ名を取り込む</button>
-      <button disabled={busy || editor !== undefined} onClick={() => action(load)} className={buttonClass}>最新情報を取得</button>
+      <button disabled={busy || rosterBusy || editor !== undefined} onClick={() => action(load)} className={buttonClass}>最新情報を取得</button>
     </div>
     {!data && !error && <p>読み込み中…</p>}
     {data && <>
@@ -116,18 +119,24 @@ export default function StaffAttendancePage({ params }: { params: Promise<{ id: 
           {Object.entries(STAFF_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
+      <StaffRosterBoard eventId={id} roster={data.roster} disabled={busy||editor!==undefined} filter={filter} onBusyChange={setRosterBusy} onSaved={async({person,roster})=>{
+        setData(current=>current?{...current,roster,people:[...current.people.filter(item=>item.id!==person.id),person]}:current);
+        setMessage(''); setError('');
+        await load().catch(()=>setError('出欠は保存済みですが履歴を取得できませんでした。「最新情報を取得」で確認してください'));
+      }}/>
       <section aria-label="出欠予定の集計" className="grid gap-3 sm:grid-cols-2">
         {keys.map(date => <div key={date} className="rounded-xl border bg-white p-4 text-sm">
           <h2 className="font-bold">{attendanceDateLabel(date)}</h2>
-          <p className="mt-2 leading-6">{Object.entries(STAFF_RESPONSE_LABELS).map(([status, label]) => `${label} ${visible.filter(person => (person.responses[date] ?? 'UNANSWERED') === status).length}名`).join(' ／ ')}</p>
+          <p className="mt-2 leading-6">{Object.entries(STAFF_RESPONSE_LABELS).map(([status, label]) => `${label} ${visible.filter(person => (person.responses[date] ?? 'UNANSWERED') === status).length + (status==='UNANSWERED'?data.roster.rows.filter(row=>row.person_id===null&&(filter==='ALL'||row.role===filter)).length:0)}名`).join(' ／ ')}</p>
         </div>)}
       </section>
+      <h2 className="text-lg font-bold">個別編集・旧日程の確認</h2>
       <div className="space-y-4">{visible.map(person => <article key={person.id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0"><h2 className="break-words font-bold">{person.name}</h2><p className="text-sm text-slate-500">{STAFF_ROLE_LABELS[person.role]}</p></div>
           <div className="flex gap-2">
-            <button disabled={busy || editor !== undefined} onClick={() => setEditor(person)} className={buttonClass}>編集</button>
-            <button disabled={busy || editor !== undefined} onClick={() => {
+            <button disabled={busy || rosterBusy || editor !== undefined} onClick={() => setEditor(person)} className={buttonClass}>編集</button>
+            <button disabled={busy || rosterBusy || editor !== undefined} onClick={() => {
               if (!confirm(`「${person.name}」の出欠予定を削除しますか？`)) return;
               action(async () => {
                 await apiJson(`${path}/${person.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: person.version }) });

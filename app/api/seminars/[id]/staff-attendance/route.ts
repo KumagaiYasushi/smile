@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { currentUser, requireMember } from '@/lib/auth-server';
 import { staffAttendanceStore, staffAttendanceResponse } from '@/lib/staff-attendance-server';
+import { getDb } from '@/lib/db';
+import { createStaffRosterStore } from '@/lib/staff-roster';
 import { parseId, TaskError } from '@/types/task';
 
 type Params = { params: Promise<{ id: string }> };
@@ -8,7 +10,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const denied = await requireMember(request); if (denied) return denied;
   return staffAttendanceResponse(async () => {
     const id = parseId((await params).id), store = staffAttendanceStore();
-    return { ...store.list(id), history: store.history(id) };
+    return { ...store.list(id), history: store.history(id), roster:createStaffRosterStore(getDb()).list(id) };
   });
 }
 export async function POST(request: NextRequest, { params }: Params) {
