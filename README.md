@@ -8,6 +8,7 @@
 開催日変更時の期限の確認・更新は [開催日・期限変更](docs/reschedule.md) を参照してください。
 イベントを横断した期限・担当の集計は [タスクダッシュボード](docs/dashboard.md) を参照してください。
 開催方法の3択と既存データの扱いは [開催方法](docs/delivery-methods.md) を参照してください。
+開催回数・任意の時刻・入金確認後の領収書発行は [イベント設定・領収書](docs/event-settings-receipts.md) を参照してください。
 講師・サポートメンバーの事前の出欠登録は [出欠予定](docs/staff-attendance.md) を参照してください。
 懇親会の開催有無・日時・場所・参加費は [懇親会](docs/social-gathering.md) を参照してください。
 昼食の対象・人数・費用・店舗情報は [昼食の手配](docs/lunch.md) を参照してください。

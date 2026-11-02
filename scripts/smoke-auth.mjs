@@ -17,6 +17,7 @@ import { smokeStaffAttendance } from './smoke-staff-attendance.mjs';
 import { smokeSocialGathering } from './smoke-social-gathering.mjs';
 import { smokeLunch } from './smoke-lunch.mjs';
 import { smokeVenues } from './smoke-venues.mjs';
+import { smokeSettingsReceipts } from './smoke-settings-receipts.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
 const directory = mkdtempSync(join(tmpdir(), 'smile-auth-smoke-'));
@@ -85,6 +86,7 @@ try {
     ['/api/seminars/1/staff-attendance/1', ['PATCH', 'DELETE']],
     ['/api/seminars/1/staff-attendance/import', ['POST']],
     ['/api/seminars/1/lunch', ['GET', 'POST']], ['/api/seminars/1/lunch/1', ['PATCH', 'DELETE']],
+    ['/api/seminars/1/participants/1/receipt', ['GET', 'POST']],
     ['/api/venues', ['GET', 'POST']], ['/api/venues/1', ['GET', 'PATCH']],
   ]) {
     for (const method of methods) await guest.request(path, method, method === 'GET' ? undefined : {}, 401);
@@ -97,7 +99,7 @@ try {
   assert.equal((await (await member.request('/api/auth/me')).json()).user.role, 'member');
   await member.request('/api/admin/users', 'GET', undefined, 403);
   await member.request('/api/admin/users', 'POST', { email: 'extra@example.invalid', password, role: 'admin' }, 403);
-  await member.request('/api/seminars', 'POST', { name: 'rejected' }, 403, { Origin: 'https://untrusted.invalid' });
+  await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: 'rejected' }, 403, { Origin: 'https://untrusted.invalid' });
   await smokeEventTypes(base, member.cookie());
   await smokeTasks(member);
   await smokeTemplates(member);
@@ -107,6 +109,7 @@ try {
   await smokeSocialGathering(member);
   await smokeLunch(member);
   await smokeVenues(member);
+  await smokeSettingsReceipts(member);
   assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_plans').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_history').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM event_staff').get().n, 0);
@@ -116,14 +119,14 @@ try {
   assert.equal(db.prepare('SELECT count(*) n FROM task_template_applications').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM task_generation_batches').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM event_schedule_state').get().n, 0);
-  const seminar = await (await member.request('/api/seminars', 'POST', { name: '架空認証検証' }, 201)).json();
+  const seminar = await (await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空認証検証' }, 201)).json();
   const participant = await (await member.request(`/api/seminars/${seminar.id}/participants`, 'POST', { name: '架空参加者' }, 201)).json();
   const correct = `/api/seminars/${seminar.id}/participants/${participant.id}`;
   const incorrect = `/api/seminars/${seminar.id + 999}/participants/${participant.id}`;
   for (const method of ['GET', 'PATCH', 'DELETE']) {
     await member.request(incorrect, method, method === 'PATCH' ? { name: 'bad' } : undefined, 404);
   }
-  assert.equal((await (await member.request(correct, 'PATCH', { payment_status: 'paid' })).json()).payment_status, 'paid');
+  assert.equal((await (await member.request(correct, 'PATCH', { payment_status: 'paid', paid_amount: 5000 })).json()).payment_status, 'paid');
   await member.request(correct, 'DELETE');
   await member.request(`/api/seminars/${seminar.id}`, 'DELETE');
   const oldCookie = member.cookie();

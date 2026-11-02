@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiJson } from '@/lib/client-api';
-import { STAFF_ROLE_LABELS, STAFF_RESPONSE_LABELS, attendanceDateKeys, attendanceDateLabel } from '@/types/staff-attendance';
+import { STAFF_ROLE_LABELS, STAFF_SELECTABLE_ROLE_LABELS, STAFF_RESPONSE_LABELS, attendanceDateKeys, attendanceDateLabel } from '@/types/staff-attendance';
 import type { StaffPerson, StaffInput, StaffRole, StaffResponse, StaffAttendance, StaffHistory } from '@/types/staff-attendance';
 
 const inputClass = 'mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
@@ -14,7 +14,7 @@ function AttendanceEditor({ initial, dates, onSave, onCancel }: {
   initial: StaffPerson | null; dates: string[]; onSave: (input: StaffInput) => Promise<void>; onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [role, setRole] = useState<StaffRole>(initial?.role ?? 'SUPPORT');
+  const [role, setRole] = useState<StaffRole | ''>(initial ? Object.hasOwn(STAFF_SELECTABLE_ROLE_LABELS, initial.role) ? initial.role : '' : 'SOCIETY_SUPPORT');
   const [responses, setResponses] = useState<Record<string, StaffResponse>>(() => Object.fromEntries(
     attendanceDateKeys(dates).map(date => [date, initial?.responses[date] ?? 'UNANSWERED'])
   ));
@@ -22,7 +22,7 @@ function AttendanceEditor({ initial, dates, onSave, onCancel }: {
   const [saving, setSaving] = useState(false);
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setError('');
-    try { await onSave({ name, role, responses, schedule: dates }); }
+    try { await onSave({ name, role: role as StaffRole, responses, schedule: dates }); }
     catch (error) { setError(error instanceof Error ? error.message : '保存できませんでした'); }
     finally { setSaving(false); }
   }
@@ -33,8 +33,9 @@ function AttendanceEditor({ initial, dates, onSave, onCancel }: {
       <input autoFocus required maxLength={200} value={name} onChange={e => setName(e.target.value)} className={inputClass} />
     </label>
     <label className="block text-sm font-medium">役割
-      <select aria-label="役割" value={role} onChange={e => setRole(e.target.value as StaffRole)} className={inputClass}>
-        {Object.entries(STAFF_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      <select aria-label="役割" required value={role} onChange={e => setRole(e.target.value as StaffRole)} className={inputClass}>
+        <option value="" disabled>区分を選択してください</option>
+        {Object.entries(STAFF_SELECTABLE_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select>
     </label>
     <fieldset className="space-y-3">

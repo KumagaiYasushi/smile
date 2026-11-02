@@ -7,10 +7,10 @@ export async function smokeLunch(client) {
   const input = { date: dates[0], target: 'LECTURER', target_details: '架空の講師', quantity: 3, unit_price: 1200,
     additional_cost: 500, shop_name: '架空のお店', shop_contact: '架空の住所', menu: '昼食セット', notes: '', status: 'PLANNED', schedule: dates };
   try {
-    const other = await json('/api/seminars', 'POST', { name: '別の架空イベント', generate_tasks: false }, 201);
+    const other = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '別の架空イベント', generate_tasks: false }, 201);
     ids.push(other.id);
     for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) {
-      const event = await json('/api/seminars', 'POST', { name: '架空の昼食検証', event_type, dates, generate_tasks: false }, 201);
+      const event = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の昼食検証', event_type, dates, generate_tasks: false }, 201);
       ids.push(event.id);
       const path = `/api/seminars/${event.id}/lunch`;
       await client.request(`/seminars/${event.id}/lunch`);

@@ -5,17 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Seminar, CHECKLIST_ITEMS, EVENT_TYPE_LABELS, deliveryMethodLabel } from '@/types/seminar';
 import { eventAttendanceText } from '@/lib/event-presentation';
+import { formatEventDate, OCCURRENCE_LABELS } from '@/types/event-schedule';
 import { SOCIAL_STATUS_LABELS, formatSocialDateTime } from '@/types/social-gathering';
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-  const wday = weekdays[d.getDay()];
-  return `${year}年${month}月${day}日（${wday}）`;
-}
 
 function formatCurrency(n: number) {
   return n === 0 ? '—' : `¥${n.toLocaleString()}`;
@@ -57,7 +49,7 @@ export default function SeminarDetailPage({ params }: Props) {
 
   const generateSns = () => {
     if (!seminar) return;
-    const dateLines = seminar.dates.map(formatDate).join('\n');
+    const dateLines = seminar.dates.map(date => formatEventDate(date, seminar.event_times)).join('\n');
     const fees: string[] = [];
     if (seminar.fee_dental_hygienist > 0) fees.push(`歯科衛生士：${formatCurrency(seminar.fee_dental_hygienist)}`);
     if (seminar.fee_dentist > 0) fees.push(`歯科医師：${formatCurrency(seminar.fee_dentist)}`);
@@ -170,13 +162,14 @@ export default function SeminarDetailPage({ params }: Props) {
             <dl className="space-y-3">
               <Row label="イベント種別">{EVENT_TYPE_LABELS[seminar.event_type]}</Row>
               <Row label="開催方法">{deliveryMethodLabel(seminar.delivery_method)}</Row>
+              <Row label="開催回数">{seminar.occurrence_type ? OCCURRENCE_LABELS[seminar.occurrence_type] : '未設定'}</Row>
               <Row label="日程">
                 {seminar.dates.length === 0 ? (
                   <span className="text-slate-400">未設定</span>
                 ) : (
                   <ul className="space-y-1">
                     {seminar.dates.map((d, i) => (
-                      <li key={i} className="text-slate-700">{formatDate(d)}</li>
+                      <li key={i} className="text-slate-700">{formatEventDate(d, seminar.event_times)}</li>
                     ))}
                   </ul>
                 )}
@@ -186,7 +179,7 @@ export default function SeminarDetailPage({ params }: Props) {
                   <p className="text-slate-700 whitespace-pre-wrap">{seminar.content}</p>
                 </Row>
               )}
-              <Row label="講師">{seminar.lecturer_name || <span className="text-slate-400">未設定</span>}</Row>
+              <Row label="講師">{seminar.lecturer_name || <span className="text-slate-400">未設定</span>}{seminar.lecturer_role && <span className="ml-2 text-sm text-slate-500">（{seminar.lecturer_role === 'EXTERNAL_LECTURER' ? '外来講師' : '研究会講師'}）</span>}</Row>
               <Row label="サポート">
                 {seminar.assistant_members.length === 0 ? (
                   <span className="text-slate-400">未設定</span>

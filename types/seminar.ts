@@ -1,4 +1,5 @@
 import type { SocialGathering } from './social-gathering.ts';
+import type { EventTimes, OccurrenceType } from './event-schedule.ts';
 
 export const EVENT_TYPE_LABELS = {
   BASIC_COURSE: 'ベーシックコース',
@@ -32,6 +33,9 @@ export type Seminar = {
   id: number;
   event_type: EventType;
   delivery_method: DeliveryMethod | null;
+  occurrence_type: OccurrenceType | null;
+  event_times: EventTimes;
+  lecturer_role: 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' | null;
   social_gathering: SocialGathering;
   name: string;
   dates: string[];
@@ -64,5 +68,4 @@ export const CHECKLIST_ITEMS: { key: keyof Pick<Seminar, 'lecturer_invitation_se
   { key: 'photo_received', label: '顔写真の受領' },
   { key: 'abstract_300_requested', label: '抄録（300字）依頼' },
   { key: 'abstract_800_requested', label: '抄録（800字）依頼' },
-  { key: 'receipt_issued', label: '領収書発行' },
 ];

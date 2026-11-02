@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, use } from 'react';
 import Link from 'next/link';
 import { apiJson } from '@/lib/client-api';
 import { Seminar } from '@/types/seminar';
-import { Participant, ParticipantRole, PaymentStatus, ROLE_LABELS, PAYMENT_LABELS } from '@/types/participant';
+import { Participant, ParticipantFields, ParticipantRole, PaymentMethod, PaymentStatus, ROLE_LABELS, PAYMENT_LABELS, PAYMENT_METHOD_LABELS, canIssueReceipt } from '@/types/participant';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -25,9 +25,9 @@ export default function ParticipantsPage({ params }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [editTarget, setEditTarget] = useState<Participant | null>(null);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ParticipantFields>({
     name: '', role: 'dental_hygienist' as ParticipantRole,
-    email: '', phone: '', payment_status: 'unpaid' as PaymentStatus,
+    email: '', phone: '', payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null,
     attended: false, receipt_number: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
@@ -50,14 +50,14 @@ export default function ParticipantsPage({ params }: Props) {
   const openAdd = () => {
     setError('');
     setEditTarget(null);
-    setForm({ name: '', role: 'dental_hygienist', email: '', phone: '', payment_status: 'unpaid', attended: false, receipt_number: '', notes: '' });
+    setForm({ name: '', role: 'dental_hygienist', email: '', phone: '', payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null, attended: false, receipt_number: '', notes: '' });
     setShowForm(true);
   };
 
   const openEdit = (p: Participant) => {
     setError('');
     setEditTarget(p);
-    setForm({ name: p.name, role: p.role, email: p.email, phone: p.phone, payment_status: p.payment_status, attended: p.attended, receipt_number: p.receipt_number, notes: p.notes });
+    setForm({ name: p.name, role: p.role, email: p.email, phone: p.phone, payment_status: p.payment_status, payment_method: p.payment_method, paid_amount: p.paid_amount, attended: p.attended, receipt_number: p.receipt_number, notes: p.notes });
     setShowForm(true);
   };
 
@@ -81,16 +81,36 @@ export default function ParticipantsPage({ params }: Props) {
   };
 
   const togglePayment = async (p: Participant) => {
+    if (!p.payment_confirmed_at || p.payment_status === 'unpaid') {
+      openEdit(p);
+      setForm(current => ({ ...current, payment_status: 'paid', paid_amount: p.paid_amount ?? getFeeForRole(seminar!, p.role) }));
+      return;
+    }
+    if (!confirm(`「${p.name}」の入金確認を取り消しますか？`)) return;
     setBusy(true); setError('');
     try {
-      const next: PaymentStatus = p.payment_status === 'unpaid' ? 'paid' : 'unpaid';
       const updated = await apiJson(`/api/seminars/${id}/participants/${p.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payment_status: next }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payment_status: 'unpaid' }),
       });
       setParticipants((prev) => prev.map((x) => x.id === updated.id ? updated : x));
     } catch (error) { setError(error instanceof Error ? error.message : '入金状況を更新できませんでした'); }
     finally { setBusy(false); }
   };
+
+  const issueReceipt = async (p: Participant) => {
+    if (!confirm(`「${p.name}」の銀行振込 ¥${p.paid_amount?.toLocaleString()} の領収書を発行しますか？発行後の入金情報・領収書番号は変更できません。`)) return;
+    setBusy(true); setError('');
+    try {
+      const { receipt } = await apiJson(`/api/seminars/${id}/participants/${p.id}/receipt`, { method: 'POST' });
+      setParticipants(prev => prev.map(x => x.id === p.id ? { ...x, issued_receipt_id: receipt.id, receipt_issued_at: receipt.issued_at, receipt_number: receipt.receipt_number } : x));
+    } catch (error) { setError(error instanceof Error ? error.message : '領収書を発行できませんでした'); }
+    finally { setBusy(false); }
+  };
+  const receiptAction = (p: Participant) => p.issued_receipt_id
+    ? <Link href={`/seminars/${id}/participants/${p.id}/receipt`} target="_blank" className="py-2 text-sky-700 underline">領収書</Link>
+    : canIssueReceipt(p) ? <button disabled={busy} onClick={() => issueReceipt(p)} className="py-2 text-sky-700 underline">領収書を発行</button>
+      : <span className="py-2 text-xs text-slate-500">銀行振込の入金確認後に発行</span>;
+  const paymentLabel = (p: Participant) => p.payment_status === 'paid' && !p.payment_confirmed_at ? '入金確認待ち' : PAYMENT_LABELS[p.payment_status];
 
   const toggleAttended = async (p: Participant) => {
     setBusy(true); setError('');
@@ -119,7 +139,7 @@ export default function ParticipantsPage({ params }: Props) {
   const paidCount = participants.filter((p) => p.payment_status === 'paid').length;
   const totalRevenue = participants
     .filter((p) => p.payment_status === 'paid')
-    .reduce((sum, p) => sum + getFeeForRole(seminar, p.role), 0);
+    .reduce((sum, p) => sum + (p.paid_amount ?? 0), 0);
 
   const byRole = ROLES.map((role) => ({
     role, label: ROLE_LABELS[role],
@@ -153,6 +173,7 @@ export default function ParticipantsPage({ params }: Props) {
         <StatCard label="入金合計" value={`¥${totalRevenue.toLocaleString()}`} accent="sky" />
       </div>
 
+      <p className="text-sm text-slate-600">未入金ボタンから実際の入金額を確認して保存します。銀行振込の参加者は、その後「領収書を発行」を選べます。入金合計は確認済み金額の合計です。</p>
       {/* 職種別内訳 */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
         <h2 className="text-sm font-bold text-slate-700 mb-3">職種別内訳</h2>
@@ -175,13 +196,13 @@ export default function ParticipantsPage({ params }: Props) {
           <div className="divide-y divide-slate-100 md:hidden" aria-label="参加者カード一覧">
             {participants.map((p) => <article key={p.id} className="space-y-3 p-4">
               <div><h3 className="break-words font-bold text-slate-800">{p.name}</h3><p className="text-sm text-slate-500">{ROLE_LABELS[p.role]}</p></div>
-              <div className="space-y-1 break-all text-sm text-slate-600">{p.email && <p>{p.email}</p>}{p.phone && <p>{p.phone}</p>}<p>参加費：¥{getFeeForRole(seminar, p.role).toLocaleString()}</p><p>領収書No.：{p.receipt_number || '—'}</p></div>
+              <div className="space-y-1 break-all text-sm text-slate-600">{p.email && <p>{p.email}</p>}{p.phone && <p>{p.phone}</p>}<p>参加費：¥{getFeeForRole(seminar, p.role).toLocaleString()}</p><p>支払方法：{p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : '未設定'}</p><p>入金額：{p.paid_amount === null ? '未確認' : `¥${p.paid_amount.toLocaleString()}`}</p><p>領収書No.：{p.receipt_number || '—'}</p></div>
               <div className="flex flex-wrap gap-3">
-                <button disabled={busy} onClick={() => togglePayment(p)} className={`rounded-full px-3 py-2 text-sm font-bold ${p.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>{PAYMENT_LABELS[p.payment_status]}</button>
+                <button disabled={busy || !!p.issued_receipt_id} onClick={() => togglePayment(p)} className={`rounded-full px-3 py-2 text-sm font-bold ${p.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>{paymentLabel(p)}</button>
                 <button disabled={busy} onClick={() => toggleAttended(p)} className={`rounded-full px-3 py-2 text-sm font-bold ${p.attended ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-600'}`}>{p.attended ? '出席' : '未確認'}</button>
               </div>
               <div className="flex flex-wrap gap-5 text-sm">
-                <Link href={`/seminars/${id}/participants/${p.id}/receipt`} target="_blank" className="py-2 text-sky-700 underline">領収書</Link>
+                {receiptAction(p)}
                 <button disabled={busy} onClick={() => openEdit(p)} className="py-2 text-sky-700 underline">編集</button>
                 <button disabled={busy} onClick={() => handleDelete(p)} className="py-2 text-red-700 underline">削除</button>
               </div>
@@ -215,15 +236,16 @@ export default function ParticipantsPage({ params }: Props) {
                     </td>
                     <td className="px-4 py-3">
                       <button
-                        disabled={busy} onClick={() => togglePayment(p)}
+                        disabled={busy || !!p.issued_receipt_id} onClick={() => togglePayment(p)}
                         className={`px-2.5 py-1 rounded-full text-xs font-bold transition-colors ${
                           p.payment_status === 'paid'
                             ? 'bg-green-100 text-green-700 hover:bg-green-200'
                             : 'bg-red-100 text-red-600 hover:bg-red-200'
                         }`}
                       >
-                        {PAYMENT_LABELS[p.payment_status]}
+                        {paymentLabel(p)}
                       </button>
+                      <p className="mt-1 text-xs text-slate-500">{p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : '支払方法未設定'}<br />{p.paid_amount === null ? '入金額未確認' : `¥${p.paid_amount.toLocaleString()}`}</p>
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -239,14 +261,8 @@ export default function ParticipantsPage({ params }: Props) {
                     </td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{p.receipt_number || '—'}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2 justify-end">
-                        <Link
-                          href={`/seminars/${id}/participants/${p.id}/receipt`}
-                          className="text-xs text-sky-600 hover:text-sky-800 font-medium"
-                          target="_blank"
-                        >
-                          領収書
-                        </Link>
+                      <div className="flex flex-wrap items-center gap-2 justify-end">
+                        {receiptAction(p)}
                         <button
                           disabled={busy} onClick={() => openEdit(p)}
                           className="text-xs text-slate-500 hover:text-slate-700"
@@ -307,8 +323,9 @@ export default function ParticipantsPage({ params }: Props) {
                   <label htmlFor="participant-payment" className="block text-sm font-medium text-slate-700 mb-1">入金状況</label>
                   <select
                     id="participant-payment"
+                    disabled={!!editTarget?.issued_receipt_id}
                     value={form.payment_status}
-                    onChange={(e) => setForm({ ...form, payment_status: e.target.value as PaymentStatus })}
+                    onChange={(e) => setForm({ ...form, payment_status: e.target.value as PaymentStatus, paid_amount: e.target.value === 'paid' ? form.paid_amount ?? getFeeForRole(seminar, form.role) : null })}
                     className={input}
                   >
                     <option value="unpaid">未入金</option>
@@ -316,6 +333,16 @@ export default function ParticipantsPage({ params }: Props) {
                   </select>
                 </div>
               </div>
+              <label className="block text-sm font-medium text-slate-700">支払方法
+                <select aria-label="支払方法" disabled={!!editTarget?.issued_receipt_id} value={form.payment_method ?? ''} onChange={e => setForm({ ...form, payment_method: e.target.value ? e.target.value as PaymentMethod : null })} className={input}>
+                  <option value="">未設定</option>{Object.entries(PAYMENT_METHOD_LABELS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              {form.payment_status === 'paid' && <label className="block text-sm font-medium text-slate-700">確認した入金額（円）
+                <input aria-label="確認した入金額（円）" type="number" min="0" step="1" required disabled={!!editTarget?.issued_receipt_id} value={form.paid_amount ?? ''} onChange={e => setForm({ ...form, paid_amount: e.target.value === '' ? null : Number(e.target.value) })} className={input} />
+                <span className="mt-1 block text-xs text-slate-500">実際の入金額を確認して保存してください。銀行振込は保存後に領収書を発行できます。</span>
+              </label>}
+              {editTarget?.issued_receipt_id && <p className="text-sm text-slate-500">領収書発行済みの入金情報・領収書番号は変更できません。領収書には発行時の情報を保持します。</p>}
               <div>
                 <label htmlFor="participant-email" className="block text-sm font-medium text-slate-700 mb-1">メールアドレス</label>
                 <input id="participant-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="example@example.com" className={input} />
@@ -326,7 +353,7 @@ export default function ParticipantsPage({ params }: Props) {
               </div>
               <div>
                 <label htmlFor="participant-receipt" className="block text-sm font-medium text-slate-700 mb-1">領収書No.</label>
-                <input id="participant-receipt" type="text" value={form.receipt_number} onChange={(e) => setForm({ ...form, receipt_number: e.target.value })} placeholder="例：2024-001" className={input} />
+                <input id="participant-receipt" type="text" disabled={!!editTarget?.issued_receipt_id} value={form.receipt_number} onChange={(e) => setForm({ ...form, receipt_number: e.target.value })} placeholder="例：2024-001" className={input} />
               </div>
               <div className="flex items-center gap-2">
                 <input

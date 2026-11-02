@@ -6,6 +6,7 @@ import { TaskError } from '../types/task.ts';
 import { relativeDueDate } from '../types/task-template.ts';
 import { parseScheduleInput } from '../types/reschedule.ts';
 import type { ScheduleInput, ScheduleHistory, SchedulePreview } from '../types/reschedule.ts';
+import { validateOccurrences } from '../types/event-schedule.ts';
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
@@ -26,12 +27,14 @@ export function createRescheduleStore(db: Database.Database) {
     );
   `);
   function event(id: number) {
-    const row = db.prepare('SELECT id,event_type,dates FROM seminars WHERE id=?').get(id) as { id: number; event_type: string; dates: string } | undefined;
+    const row = db.prepare('SELECT * FROM seminars WHERE id=?').get(id) as { id: number; event_type: string; dates: string; occurrence_type?: string | null } | undefined;
     if (!row) throw new TaskError('イベントが見つかりません', 404);
-    return row;
+    return { id: row.id, event_type: row.event_type, dates: row.dates,
+      ...('occurrence_type' in row ? { occurrence_type: row.occurrence_type } : {}) };
   }
   function build(seminarId: number, input: ScheduleInput): SchedulePreview {
     const current = event(seminarId);
+    if ('occurrence_type' in current) validateOccurrences(current.occurrence_type, input.dates);
     db.prepare('INSERT OR IGNORE INTO event_schedule_state(seminar_id) VALUES(?)').run(seminarId);
     const revision = db.prepare('SELECT revision FROM event_schedule_state WHERE seminar_id=?').get(seminarId);
     const allTasks = tasks.listTasks(seminarId).sort((a, b) => a.id - b.id);

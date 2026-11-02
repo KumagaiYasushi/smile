@@ -11,7 +11,7 @@ export async function smokeReschedule(client) {
   const { template } = await json('/api/task-templates', 'POST', { event_type: 'SEMINAR', title: '架空の日程変更検証', relative_days: -30 }, 201);
   let event;
   try {
-    event = await json('/api/seminars', 'POST', { name: '架空の日程変更', dates: ['2027-01-01'], venue: 'original' }, 201);
+    event = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の日程変更', dates: ['2027-01-01'], venue: 'original' }, 201);
     const root = `/api/seminars/${event.id}`;
     await client.request(`/seminars/${event.id}/reschedule`);
     let generated = (await json(`${root}/tasks`)).tasks[0];

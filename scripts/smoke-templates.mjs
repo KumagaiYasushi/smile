@@ -6,7 +6,7 @@ export async function smokeTemplates(client) {
   const eventIds = [];
   const templateIds = [];
   async function createEvent(body) {
-    const event = await json('/api/seminars', 'POST', body, 201); eventIds.push(event.id); return event;
+    const event = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', ...body }, 201); eventIds.push(event.id); return event;
   }
   async function createTemplate(body) {
     const { template } = await json('/api/task-templates', 'POST', body, 201); templateIds.push(template.id); return template;
@@ -28,8 +28,8 @@ export async function smokeTemplates(client) {
     assert.equal(generated[0].important, true);
     assert.equal(generated[0].assignee_id, null);
     const before = (await json('/api/seminars')).length;
-    await client.request('/api/seminars', 'POST', { name: 'must roll back', dates: ['2027-01-01','2027-02-01'] }, 400);
-    await client.request('/api/seminars', 'POST', { name: 'must roll back too' }, 400);
+    await client.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: 'must roll back', dates: ['2027-01-01','2027-02-01'] }, 400);
+    await client.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: 'must roll back too' }, 400);
     assert.equal((await json('/api/seminars')).length, before);
     const lecture = await createEvent({ name: '架空の講演会', event_type: 'LECTURE', dates: ['2027-01-01'] });
     assert.equal((await json(`/api/seminars/${lecture.id}/tasks`)).tasks[0].due_date, '2027-01-08');

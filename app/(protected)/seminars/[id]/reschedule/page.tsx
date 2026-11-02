@@ -6,6 +6,8 @@ import { apiJson } from '@/lib/client-api';
 import { TASK_STATUS_LABELS } from '@/types/task';
 import type { TaskMember } from '@/types/task';
 import type { DeadlineDecision, ScheduleHistory, SchedulePreview } from '@/types/reschedule';
+import { OCCURRENCE_LABELS } from '@/types/event-schedule';
+import type { OccurrenceType } from '@/types/event-schedule';
 
 const fieldClass = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
 async function loadPage(id: string, signal?: AbortSignal) {
@@ -15,6 +17,7 @@ async function loadPage(id: string, signal?: AbortSignal) {
 export default function ReschedulePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [name, setName] = useState('');
+  const [occurrence, setOccurrence] = useState<OccurrenceType | null>(null);
   const [dates, setDates] = useState<string[]>([]);
   const [originalDates, setOriginalDates] = useState<string[]>([]);
   const [baseDate, setBaseDate] = useState('');
@@ -32,7 +35,7 @@ export default function ReschedulePage({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     const controller = new AbortController();
     loadPage(id, controller.signal).then(([event, directory, audit]) => {
-      setName(event.name); setDates(event.dates.length ? event.dates : ['']); setOriginalDates(event.dates);
+      setName(event.name); setOccurrence(event.occurrence_type); setDates(event.dates.length ? event.dates : ['']); setOriginalDates(event.dates);
       setBaseDate(event.dates.length === 1 ? event.dates[0] : ''); setMembers(directory.members); setHistory(audit.history); setLoading(false);
     }).catch((error) => { if (!controller.signal.aborted) { setError(error.message); setLoading(false); } });
     return () => controller.abort();
@@ -46,7 +49,7 @@ export default function ReschedulePage({ params }: { params: Promise<{ id: strin
   async function reload(force = false) {
     if (!force && !confirm('編集中の入力を破棄して、最新の内容を取得しますか？')) return;
     const [event, directory, audit] = await loadPage(id);
-    setName(event.name); setDates(event.dates.length ? event.dates : ['']); setOriginalDates(event.dates);
+    setName(event.name); setOccurrence(event.occurrence_type); setDates(event.dates.length ? event.dates : ['']); setOriginalDates(event.dates);
     setBaseDate(event.dates.length === 1 ? event.dates[0] : ''); setMembers(directory.members); setHistory(audit.history); setPreview(null); setDecisions({});
   }
   async function refresh() {
@@ -87,6 +90,8 @@ export default function ReschedulePage({ params }: { params: Promise<{ id: strin
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
     <button disabled={busy} onClick={refresh} className="rounded-lg border bg-white px-4 py-2 text-sm">最新の内容を取得</button>
     <form onSubmit={showPreview} className="space-y-4 rounded-xl border bg-white p-5">
+      <p className="text-sm">開催回数：{occurrence ? OCCURRENCE_LABELS[occurrence] : '未設定'}。開催回数の選択・変更は<Link href={`/seminars/${id}/edit`} className="text-sky-800 underline">イベント編集</Link>から行います。</p>
+      <p className="text-sm text-slate-500">新しい開催日は年月日のみで登録します。時刻は日程変更後、イベント編集から任意で設定できます。</p>
       <p className="text-sm">現在の開催日：{originalDates.join('、') || '日程未定'}</p>
       <fieldset disabled={busy} className="space-y-3">
         <legend className="mb-3 font-bold">変更後の開催日</legend>
@@ -94,11 +99,11 @@ export default function ReschedulePage({ params }: { params: Promise<{ id: strin
           <label className="min-w-0 flex-1 text-sm">開催日 {index + 1}<input type="date" value={date} onChange={(e) => changeDates(dates.map((value, i) => i === index ? e.target.value : value))} className={fieldClass} /></label>
           <button type="button" onClick={() => changeDates(dates.filter((_, i) => i !== index))} className="rounded-lg border px-3 py-2 text-sm">削除</button>
         </div>)}
-        <button type="button" disabled={dates.length >= 100} onClick={() => changeDates([...dates, ''])} className="text-sm text-sky-700 underline">＋ 日程を追加</button>
+        {occurrence === 'MULTIPLE' && <button type="button" disabled={dates.length >= 100} onClick={() => changeDates([...dates, ''])} className="text-sm text-sky-700 underline">＋ 日程を追加</button>}
         <label className="block max-w-md text-sm">逆算する期限の基準日<select aria-label="逆算する期限の基準日" value={effectiveBase} onChange={(e) => { setBaseDate(e.target.value); setPreview(null); setDecisions({}); }} className={fieldClass}><option value="">基準日を選択しない</option>{choices.map((date) => <option key={date} value={date}>{date}</option>)}</select></label>
         <p className="text-sm text-slate-500">テンプレート生成時の日数を使って計算します。基準日がない場合は、期限の保持または個別指定を選べます。</p>
       </fieldset>
-      <button disabled={busy || !name} className="rounded-lg bg-sky-800 px-4 py-2 font-bold text-white disabled:opacity-50">変更内容をプレビュー</button>
+      <button disabled={busy || !name || !occurrence} className="rounded-lg bg-sky-800 px-4 py-2 font-bold text-white disabled:opacity-50">変更内容をプレビュー</button>
     </form>
     {preview && <form onSubmit={apply} className="space-y-4">
       <h2 className="text-xl font-bold">期限の変更前後を確認</h2>

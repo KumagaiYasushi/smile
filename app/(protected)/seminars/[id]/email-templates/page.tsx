@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
+import { formatEventDate } from '@/types/event-schedule';
 import { Seminar, deliveryMethodLabel } from '@/types/seminar';
 import { eventAttendanceText } from '@/lib/event-presentation';
 
@@ -14,14 +15,6 @@ type Template = {
   generate: (s: Seminar) => string;
 };
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-  return `${year}年${month}月${day}日（${weekdays[d.getDay()]}）`;
-}
 
 function feeText(seminar: Seminar) {
   const lines = [];
@@ -51,7 +44,7 @@ const TEMPLATES: Template[] = [
 ${s.name}
 
 ■ 開催日程
-${s.dates.length > 0 ? s.dates.map(formatDate).join('\n') : '（未定）'}
+${s.dates.length > 0 ? s.dates.map(date => formatEventDate(date, s.event_times)).join('\n') : '（未定）'}
 
 ${eventAttendanceText(s)}
 ─────────────────────────
@@ -175,7 +168,7 @@ https://stoptheperio.com`,
 ━━━━━━━━━━━━━━━━━━━━━
 
 ■ 開催日程
-${s.dates.length > 0 ? s.dates.map(formatDate).join('\n') : '（調整中）'}
+${s.dates.length > 0 ? s.dates.map(date => formatEventDate(date, s.event_times)).join('\n') : '（調整中）'}
 
 ${eventAttendanceText(s)}
 ${s.content ? `\n■ 内容\n${s.content}\n` : ''}
@@ -215,7 +208,7 @@ https://stoptheperio.com`,
 ${s.name}
 
 ■ 開催日程
-${s.dates.length > 0 ? s.dates.map(formatDate).join('\n') : '（要確認）'}
+${s.dates.length > 0 ? s.dates.map(date => formatEventDate(date, s.event_times)).join('\n') : '（要確認）'}
 
 ${eventAttendanceText(s)}
 ─────────────────────────
@@ -247,7 +240,7 @@ https://stoptheperio.com`,
 ■ 使用目的：歯科セミナー開催
 ■ セミナー名：${s.name}
 ■ 開催方法：${deliveryMethodLabel(s.delivery_method)}
-■ 希望日程：${s.dates.length > 0 ? s.dates.map(formatDate).join(' / ') : '（未定）'}
+■ 希望日程：${s.dates.length > 0 ? s.dates.map(date => formatEventDate(date, s.event_times)).join(' / ') : '（未定）'}
 ■ 会場：${s.venue || '（ご相談）'}
 ■ 想定参加人数：　　名（予定）
 ■ 使用時間：　：　〜　：　（搬入・撤収含む）

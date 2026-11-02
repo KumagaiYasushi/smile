@@ -1,40 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getParticipantsBySeminar, createParticipant, getSeminarById } from '@/lib/db';
-import { requireMember } from '@/lib/auth-server';
+import { currentUser, requireMember } from '@/lib/auth-server';
+import { participantResponse } from '@/lib/participants-server';
+import { parseParticipant } from '@/types/participant';
+import { TaskError, parseId } from '@/types/task';
 
 type Params = { params: Promise<{ id: string }> };
-
-export async function GET(_req: NextRequest, { params }: Params) {
-  const denied = await requireMember(_req);
-  if (denied) return denied;
-  const { id } = await params;
-  const seminar = getSeminarById(Number(id));
-  if (!seminar) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-  return NextResponse.json(getParticipantsBySeminar(Number(id)));
+export async function GET(request: NextRequest, { params }: Params) {
+  const denied = await requireMember(request); if (denied) return denied;
+  return participantResponse(async () => {
+    const id = parseId((await params).id);
+    if (!getSeminarById(id)) throw new TaskError('イベントが見つかりません', 404);
+    return getParticipantsBySeminar(id);
+  });
 }
-
 export async function POST(request: NextRequest, { params }: Params) {
-  const denied = await requireMember(request);
-  if (denied) return denied;
-  const { id } = await params;
-  const seminar = getSeminarById(Number(id));
-  if (!seminar) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-  try {
-    const body = await request.json();
-    const participant = createParticipant({
-      seminar_id: Number(id),
-      name: body.name ?? '',
-      role: body.role ?? 'other',
-      email: body.email ?? '',
-      phone: body.phone ?? '',
-      payment_status: body.payment_status ?? 'unpaid',
-      attended: Boolean(body.attended),
-      receipt_number: body.receipt_number ?? '',
-      notes: body.notes ?? '',
-    });
-    return NextResponse.json(participant, { status: 201 });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'サーバーエラー' }, { status: 500 });
-  }
+  const denied = await requireMember(request); if (denied) return denied;
+  return participantResponse(async () => {
+    const id = parseId((await params).id);
+    if (!getSeminarById(id)) throw new TaskError('イベントが見つかりません', 404);
+    const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
+    return createParticipant({ seminar_id: id, ...parseParticipant(await request.json()) }, actor.id);
+  }, 201);
 }

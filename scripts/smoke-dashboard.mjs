@@ -10,7 +10,7 @@ export async function smokeDashboard(client) {
   const other = (await json('/api/members')).members.find((member) => member.id !== actor).id;
   const eventIds = [];
   async function event(name, event_type) {
-    const result = await json('/api/seminars', 'POST', { name, event_type, generate_tasks: false }, 201);
+    const result = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name, event_type, generate_tasks: false }, 201);
     eventIds.push(result.id); return result.id;
   }
   async function task(seminarId, title, fields) {

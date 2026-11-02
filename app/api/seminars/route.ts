@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
     const seminar = templateStore().createEvent(() => createSeminar({
       event_type: body.event_type ?? 'SEMINAR',
       delivery_method: body.delivery_method ?? null,
+      occurrence_type: body.occurrence_type,
+      event_times: body.event_times === undefined ? {} : body.event_times,
+      lecturer_role: body.lecturer_role ?? null,
       social_gathering: gathering,
       name: body.name ?? '',
       dates: body.dates ?? [],

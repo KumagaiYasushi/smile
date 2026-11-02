@@ -1,4 +1,5 @@
-export const STAFF_ROLE_LABELS = { LECTURER: '講師', SUPPORT: 'サポートメンバー' } as const;
+export const STAFF_SELECTABLE_ROLE_LABELS = { EXTERNAL_LECTURER: '外来講師', SOCIETY_LECTURER: '研究会講師', SOCIETY_SUPPORT: '研究会サポートメンバー' } as const;
+export const STAFF_ROLE_LABELS = { ...STAFF_SELECTABLE_ROLE_LABELS, LECTURER: '講師（旧区分・未設定）', SUPPORT: 'サポート（旧区分）' } as const;
 export const STAFF_RESPONSE_LABELS = {
   UNANSWERED: '未回答', ATTENDING: '出席予定', ABSENT: '欠席予定', TENTATIVE: '調整中',
 } as const;

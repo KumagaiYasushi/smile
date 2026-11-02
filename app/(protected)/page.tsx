@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { formatEventDate } from '@/types/event-schedule';
 import { Seminar, CHECKLIST_ITEMS, EventType, EVENT_TYPE_LABELS, deliveryMethodLabel } from '@/types/seminar';
 
 function ChecklistProgress({ seminar }: { seminar: Seminar }) {
@@ -24,9 +25,6 @@ function ChecklistProgress({ seminar }: { seminar: Seminar }) {
   );
 }
 
-function formatDate(dateStr: string) {
-  return dateStr.replace(/-/g, '/');
-}
 
 export default function HomePage() {
   const [seminars, setSeminars] = useState<Seminar[]>([]);
@@ -111,7 +109,7 @@ export default function HomePage() {
                   {seminar.dates.slice(0, 2).map((d, i) => (
                     <div key={i} className="flex items-center gap-1">
                       <span className="text-slate-400">📅</span>
-                      <span>{formatDate(d)}</span>
+                      <span>{formatEventDate(d, seminar.event_times)}</span>
                     </div>
                   ))}
                   {seminar.dates.length > 2 && (

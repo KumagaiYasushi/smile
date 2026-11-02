@@ -1,42 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getParticipantById, updateParticipant, deleteParticipant } from '@/lib/db';
-import { requireMember } from '@/lib/auth-server';
+import { currentUser, requireMember } from '@/lib/auth-server';
+import { participantResponse } from '@/lib/participants-server';
+import { TaskError, parseId } from '@/types/task';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
-
-export async function GET(_req: NextRequest, { params }: Params) {
-  const denied = await requireMember(_req);
-  if (denied) return denied;
+async function scopedParticipant(params: Params['params']) {
   const { id, pid } = await params;
-  const p = getParticipantById(Number(pid));
-  if (!p || p.seminar_id !== Number(id)) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-  return NextResponse.json(p);
+  const participant = getParticipantById(parseId(pid));
+  if (!participant || participant.seminar_id !== parseId(id)) throw new TaskError('参加者が見つかりません', 404);
+  return participant;
 }
-
+export async function GET(request: NextRequest, { params }: Params) {
+  const denied = await requireMember(request); if (denied) return denied;
+  return participantResponse(() => scopedParticipant(params));
+}
 export async function PATCH(request: NextRequest, { params }: Params) {
-  const denied = await requireMember(request);
-  if (denied) return denied;
-  const { id, pid } = await params;
-  const participant = getParticipantById(Number(pid));
-  if (!participant || participant.seminar_id !== Number(id)) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-  try {
-    const body = await request.json();
-    const updated = updateParticipant(Number(pid), body);
-    if (!updated) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-    return NextResponse.json(updated);
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: 'サーバーエラー' }, { status: 500 });
-  }
+  const denied = await requireMember(request); if (denied) return denied;
+  return participantResponse(async () => {
+    const participant = await scopedParticipant(params);
+    const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
+    const updated = updateParticipant(participant.id, await request.json(), actor.id);
+    if (!updated) throw new TaskError('参加者が見つかりません', 404);
+    return updated;
+  });
 }
-
-export async function DELETE(_req: NextRequest, { params }: Params) {
-  const denied = await requireMember(_req);
-  if (denied) return denied;
-  const { id, pid } = await params;
-  const participant = getParticipantById(Number(pid));
-  if (!participant || participant.seminar_id !== Number(id)) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-  const deleted = deleteParticipant(Number(pid));
-  if (!deleted) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
-  return NextResponse.json({ success: true });
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const denied = await requireMember(request); if (denied) return denied;
+  return participantResponse(async () => {
+    const participant = await scopedParticipant(params);
+    if (!deleteParticipant(participant.id)) throw new TaskError('参加者が見つかりません', 404);
+    return { success: true };
+  });
 }

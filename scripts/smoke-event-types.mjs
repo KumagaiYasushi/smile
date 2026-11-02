@@ -28,7 +28,7 @@ try {
   }
 
   for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR', undefined]) {
-    const created = await request('/api/seminars', 'POST', { name: '架空の種別検証イベント', event_type }, 201);
+    const created = await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の種別検証イベント', event_type }, 201);
     ids.push(created.id);
     const path = `/api/seminars/${created.id}`;
     const expected = event_type ?? 'SEMINAR';
@@ -39,7 +39,7 @@ try {
     assert.equal((await request(path, 'PATCH', { event_type: 'LECTURE' })).event_type, 'LECTURE');
     for (const invalid of ['OTHER', 'toString', '', null, 1]) {
       await request(path, 'PATCH', { event_type: invalid }, 400);
-      await request('/api/seminars', 'POST', { name: '不正入力', event_type: invalid }, 400);
+      await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '不正入力', event_type: invalid }, 400);
     }
     assert.equal((await request(path)).event_type, 'LECTURE');
     const list = await request('/api/seminars');
@@ -50,7 +50,7 @@ try {
   }
   for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) {
     for (const delivery_method of ['ONSITE', 'ONLINE', 'HYBRID']) {
-      const created = await request('/api/seminars', 'POST', { name: '架空の開催方法検証', event_type, delivery_method }, 201);
+      const created = await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の開催方法検証', event_type, delivery_method }, 201);
       ids.push(created.id);
       const path = `/api/seminars/${created.id}`;
       assert.equal(created.delivery_method, delivery_method);
@@ -62,7 +62,7 @@ try {
       }
       for (const invalid of ['OTHER', 'toString', '', null, 1, [], {}]) {
         await request(path, 'PATCH', { delivery_method: invalid }, 400);
-        await request('/api/seminars', 'POST', { name: '不正入力', delivery_method: invalid }, 400);
+        await request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '不正入力', delivery_method: invalid }, 400);
       }
       assert.equal((await request(path)).delivery_method, 'ONSITE');
     }

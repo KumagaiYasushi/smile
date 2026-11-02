@@ -35,7 +35,7 @@ test('fresh database stores every type and preserves it during unrelated edits a
   inTemporaryDatabase(`
     const { getDb, createSeminar, updateSeminar, getSeminarById } = await import(${JSON.stringify(dbModule)});
     const input = {
-      name: '架空イベント', dates: ['2027-01-01'], content: '', lecturer_name: '', assistant_members: [],
+      occurrence_type: 'SINGLE', event_times: {}, lecturer_role: null, name: '架空イベント', dates: ['2027-01-01'], content: '', lecturer_name: '', assistant_members: [],
       fee_dental_hygienist: 0, fee_dentist: 0, fee_other: 0, target_participants: '', venue: '',
       venue_fee: 0, sns_announcement: '', lecturer_invitation_sent: false, photo_received: false,
       abstract_300_requested: false, abstract_800_requested: false, receipt_issued: false, notes: '',
@@ -97,12 +97,19 @@ test('legacy database migrates without losing IDs, dates, timestamps, checklist 
     assert.equal(first.getSeminarById(42).event_type, 'SEMINAR');
     assert.equal(first.getSeminarById(42).delivery_method, null);
     assert.equal(first.getSeminarById(42).venue_id, null);
+    assert.equal(first.getSeminarById(42).occurrence_type, null);
+    assert.deepEqual(first.getSeminarById(42).event_times, {});
+    assert.equal(first.getSeminarById(42).lecturer_role, null);
     assert.deepEqual(first.getSeminarById(42).social_gathering, { status: 'UNDECIDED', start_at: null, end_at: null, venue: '', fee: null });
     assert.equal(first.getSeminarById(42).photo_received, true);
     assert.equal(first.getSeminarById(42).created_at, '2026-01-01');
     assert.equal(first.getSeminarById(42).updated_at, '2026-02-01');
     assert.equal(first.getParticipantsBySeminar(42)[0].id, 7);
     assert.equal(first.getParticipantsBySeminar(42)[0].payment_status, 'paid');
+    assert.equal(first.getParticipantsBySeminar(42)[0].payment_method, null);
+    assert.equal(first.getParticipantsBySeminar(42)[0].paid_amount, null);
+    assert.equal(first.getParticipantsBySeminar(42)[0].payment_confirmed_at, null);
+    assert.equal(first.getParticipantsBySeminar(42)[0].issued_receipt_id, null);
     assert.equal(first.getParticipantsBySeminar(42)[0].attended, true);
     const participant = first.createParticipant({ seminar_id: 42, name: '架空参加者', role: 'other',
       email: '', phone: '', payment_status: 'unpaid', attended: false, receipt_number: '', notes: '' });

@@ -5,8 +5,8 @@ export async function smokeTasks(client) {
   const { members } = await json('/api/members');
   assert.equal(members.length, 2);
   assert.deepEqual(Object.keys(members[0]).sort(), ['email', 'id']);
-  const first = await json('/api/seminars', 'POST', { name: '架空タスク検証' }, 201);
-  const second = await json('/api/seminars', 'POST', { name: '別の架空タスク検証' }, 201);
+  const first = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空タスク検証' }, 201);
+  const second = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '別の架空タスク検証' }, 201);
   const endpoint = `/api/seminars/${first.id}/tasks`;
   try {
     await client.request(`/seminars/${first.id}/tasks`);

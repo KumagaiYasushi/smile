@@ -1,11 +1,11 @@
 import type Database from 'better-sqlite3';
 import { TaskError, parseVersion } from '../types/task.ts';
 import { requireDate } from '../types/task-template.ts';
-import { STAFF_ROLE_LABELS, STAFF_RESPONSE_LABELS, attendanceDateKeys } from '../types/staff-attendance.ts';
+import { STAFF_ROLE_LABELS, STAFF_SELECTABLE_ROLE_LABELS, STAFF_RESPONSE_LABELS, attendanceDateKeys } from '../types/staff-attendance.ts';
 import type { StaffPerson, StaffInput, StaffRole, StaffResponse, StaffHistory, StaffAttendance } from '../types/staff-attendance.ts';
 
 type PersonRow = Omit<StaffPerson, 'responses'> & { responses_json: string };
-type EventRow = { name: string; dates: string; lecturer_name: string; assistant_members: string };
+type EventRow = { name: string; dates: string; lecturer_name: string; assistant_members: string; lecturer_role?: StaffRole | null };
 const toPerson = ({ responses_json, ...row }: PersonRow): StaffPerson => ({ ...row, responses: JSON.parse(responses_json) });
 
 export function createStaffAttendanceStore(db: Database.Database) {
@@ -14,7 +14,7 @@ export function createStaffAttendanceStore(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,
       name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
-      role TEXT NOT NULL CHECK(role IN ('LECTURER','SUPPORT')),
+      role TEXT NOT NULL CHECK(role IN ('LECTURER','SUPPORT','EXTERNAL_LECTURER','SOCIETY_LECTURER','SOCIETY_SUPPORT')),
       responses_json TEXT NOT NULL DEFAULT '{}',
       version INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -31,8 +31,26 @@ export function createStaffAttendanceStore(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS event_staff_history_event ON event_staff_history(seminar_id,id);
   `);
 
+  db.transaction(() => {
+    const schema = db.prepare("SELECT sql FROM sqlite_master WHERE name='event_staff'").get() as { sql: string };
+    if (!schema.sql.includes('SOCIETY_LECTURER')) {
+      const sequence = (db.prepare("SELECT seq FROM sqlite_sequence WHERE name='event_staff'").get() as { seq: number } | undefined)?.seq ?? 0;
+      db.exec(`CREATE TABLE event_staff_roles_migration (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,
+        name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
+        role TEXT NOT NULL CHECK(role IN ('LECTURER','SUPPORT','EXTERNAL_LECTURER','SOCIETY_LECTURER','SOCIETY_SUPPORT')),
+        responses_json TEXT NOT NULL DEFAULT '{}', version INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')), UNIQUE(seminar_id,role,name));
+        INSERT INTO event_staff_roles_migration SELECT * FROM event_staff;
+        DROP TABLE event_staff;
+        ALTER TABLE event_staff_roles_migration RENAME TO event_staff;`);
+      const restored = db.prepare("UPDATE sqlite_sequence SET seq=max(seq,?) WHERE name='event_staff'").run(sequence);
+      if (!restored.changes) db.prepare('INSERT INTO sqlite_sequence(name,seq) VALUES(?,?)').run('event_staff', sequence);
+    }
+  }).immediate();
+
   function event(id: number) {
-    const row = db.prepare('SELECT name,dates,lecturer_name,assistant_members FROM seminars WHERE id=?').get(id) as EventRow | undefined;
+    const row = db.prepare('SELECT * FROM seminars WHERE id=?').get(id) as EventRow | undefined;
     if (!row) throw new TaskError('イベントが見つかりません', 404);
     const dates = [...new Set((JSON.parse(row.dates) as string[]).map(date => requireDate(date)))].sort();
     return { ...row, dates };
@@ -48,12 +66,12 @@ export function createStaffAttendanceStore(db: Database.Database) {
     if (!Array.isArray(value) || value.some(date => typeof date !== 'string')) throw new TaskError('開催日の確認情報が必要です');
     if (JSON.stringify(value) !== JSON.stringify(dates)) throw new TaskError('開催日が変更されています。最新情報を取得して出欠予定を確認してください', 409);
   }
-  function input(value: unknown, dates: string[]): StaffInput {
+  function input(value: unknown, dates: string[], legacyImport = false): StaffInput {
     const body = object(value);
     if (Object.keys(body).some(key => !['name', 'role', 'responses', 'schedule'].includes(key))) throw new TaskError('変更できない項目が含まれています');
     schedule(body.schedule, dates);
     if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 200) throw new TaskError('氏名は1〜200文字で入力してください');
-    if (typeof body.role !== 'string' || !Object.hasOwn(STAFF_ROLE_LABELS, body.role)) throw new TaskError('役割が不正です');
+    if (typeof body.role !== 'string' || !Object.hasOwn(legacyImport ? STAFF_ROLE_LABELS : STAFF_SELECTABLE_ROLE_LABELS, body.role)) throw new TaskError('外来講師・研究会講師・研究会サポートメンバーから選択してください');
     const values = object(body.responses);
     const keys = attendanceDateKeys(dates);
     if (Object.keys(values).length !== keys.length || keys.some(key => !Object.hasOwn(values, key))) throw new TaskError('各開催日の出欠予定を指定してください');
@@ -88,7 +106,7 @@ export function createStaffAttendanceStore(db: Database.Database) {
     list(seminarId: number): StaffAttendance {
       return db.transaction(() => {
         const row = event(seminarId);
-        const people = (db.prepare("SELECT * FROM event_staff WHERE seminar_id=? ORDER BY CASE role WHEN 'LECTURER' THEN 0 ELSE 1 END,id").all(seminarId) as PersonRow[]).map(toPerson);
+        const people = (db.prepare("SELECT * FROM event_staff WHERE seminar_id=? ORDER BY CASE WHEN role IN ('LECTURER','EXTERNAL_LECTURER','SOCIETY_LECTURER') THEN 0 ELSE 1 END,id").all(seminarId) as PersonRow[]).map(toPerson);
         return { event_name: row.name, dates: row.dates, people };
       })();
     },
@@ -131,14 +149,15 @@ export function createStaffAttendanceStore(db: Database.Database) {
         if (Object.keys(fields).some(key => key !== 'schedule')) throw new TaskError('入力形式が不正です');
         schedule(fields.schedule, row.dates);
         const candidates = [
-          { name: row.lecturer_name.trim(), role: 'LECTURER' as const },
-          ...(JSON.parse(row.assistant_members) as string[]).map(name => ({ name: name.trim(), role: 'SUPPORT' as const })),
+          { name: row.lecturer_name.trim(), role: row.lecturer_role ?? 'LECTURER' as StaffRole },
+          ...(JSON.parse(row.assistant_members) as string[]).map(name => ({ name: name.trim(), role: 'SOCIETY_SUPPORT' as const })),
         ].filter(item => item.name);
         let added = 0;
         for (const candidate of candidates) {
-          if (duplicate(seminarId, candidate)) continue;
+          const roles = candidate.role === 'SOCIETY_SUPPORT' ? ['SOCIETY_SUPPORT', 'SUPPORT'] : ['EXTERNAL_LECTURER', 'SOCIETY_LECTURER', 'LECTURER'];
+          if (roles.some(role => duplicate(seminarId, { ...candidate, role: role as StaffRole }))) continue;
           insert(seminarId, input({ ...candidate, schedule: row.dates,
-            responses: Object.fromEntries(attendanceDateKeys(row.dates).map(date => [date, 'UNANSWERED'])) }, row.dates), actorId);
+            responses: Object.fromEntries(attendanceDateKeys(row.dates).map(date => [date, 'UNANSWERED'])) }, row.dates, true), actorId);
           added++;
         }
         return { added };

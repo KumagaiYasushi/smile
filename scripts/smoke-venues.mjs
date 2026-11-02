@@ -11,7 +11,7 @@ export async function smokeVenues(client) {
     const path = `/api/venues/${venue.id}`;
     assert.equal((await json(`/api/venues?query=${encodeURIComponent('架空の住所')}`)).venues[0].id, venue.id);
     for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) {
-      const event = await json('/api/seminars', 'POST', { name: '架空の会場選択検証', event_type, generate_tasks: false,
+      const event = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の会場選択検証', event_type, generate_tasks: false,
         venue_id: venue.id, venue: '保存時の会場名と住所', venue_fee: 12345 }, 201);
       ids.push(event.id);
       assert.equal(event.venue_id, venue.id);
@@ -26,7 +26,7 @@ export async function smokeVenues(client) {
     venue = (await json(path, 'PATCH', { version: venue.version, active: false })).venue;
     assert.ok(!(await json('/api/venues')).venues.some(item => item.id === venue.id));
     assert.ok((await json('/api/venues?status=INACTIVE')).venues.some(item => item.id === venue.id));
-    await client.request('/api/seminars', 'POST', { name: '利用停止選択', generate_tasks: false, venue_id: venue.id }, 400);
+    await client.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '利用停止選択', generate_tasks: false, venue_id: venue.id }, 400);
     assert.equal((await json(`/api/seminars/${ids[0]}`, 'PATCH', { venue_id: venue.id, notes: '既存の紐付けを保持' })).venue_id, venue.id);
     await client.request(`/api/seminars/${ids[0]}`, 'PATCH', { venue_id: null });
     await client.request(`/api/seminars/${ids[0]}`, 'PATCH', { venue_id: venue.id }, 400);
@@ -34,7 +34,7 @@ export async function smokeVenues(client) {
     await client.request(`/api/seminars/${ids[0]}`, 'PATCH', { venue_id: venue.id });
     for (const badId of [0, -1, '1', {}, 99999999]) {
       await client.request(`/api/seminars/${ids[0]}`, 'PATCH', { venue_id: badId }, 400);
-      await client.request('/api/seminars', 'POST', { name: '不正ID', generate_tasks: false, venue_id: badId }, 400);
+      await client.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '不正ID', generate_tasks: false, venue_id: badId }, 400);
     }
     for (const bad of [{ name: '' }, { capacity: -1 }, { reference_fee: '100' }, { website: 'javascript:alert(1)' }, { email: 'invalid' }, { actor_id: 2 }]) {
       await client.request(path, 'PATCH', { version: venue.version, ...bad }, 400);

@@ -7,8 +7,8 @@ export async function smokeStaffAttendance(client) {
   const dates = ['2027-06-01', '2027-06-08'];
   try {
     for (const event_type of ['BASIC_COURSE', 'LECTURE', 'SEMINAR']) {
-      const event = await json('/api/seminars', 'POST', { name: '架空の出欠予定検証', event_type, dates,
-        lecturer_name: '架空講師', assistant_members: ['架空サポート'], generate_tasks: false }, 201);
+      const event = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の出欠予定検証', event_type, dates,
+        lecturer_role: 'SOCIETY_LECTURER', lecturer_name: '架空講師', assistant_members: ['架空サポート'], generate_tasks: false }, 201);
       eventIds.push(event.id);
       const path = `/api/seminars/${event.id}/staff-attendance`;
       await client.request(`/seminars/${event.id}/staff-attendance`);
@@ -17,7 +17,7 @@ export async function smokeStaffAttendance(client) {
       assert.equal((await json(`${path}/import`, 'POST', { schedule: dates })).added, 0);
       const initial = await json(path);
       assert.ok(initial.people.every(person => person.responses[dates[0]] === 'UNANSWERED'));
-      let lecturer = initial.people.find(person => person.role === 'LECTURER');
+      let lecturer = initial.people.find(person => person.role === 'SOCIETY_LECTURER');
       const input = { name: lecturer.name, role: lecturer.role, schedule: dates,
         responses: { [dates[0]]: 'ATTENDING', [dates[1]]: 'ABSENT' } };
       lecturer = (await json(`${path}/${lecturer.id}`, 'PATCH', { ...input, version: lecturer.version })).person;
@@ -25,7 +25,7 @@ export async function smokeStaffAttendance(client) {
       assert.equal(lecturer.responses[dates[1]], 'ABSENT');
       await client.request(`${path}/${lecturer.id}`, 'PATCH', { ...input, version: 1 }, 409);
       await client.request(`${path}/${lecturer.id}`, 'DELETE', { version: 1 }, 409);
-      const other = await json('/api/seminars', 'POST', { name: '架空の別イベント', dates, generate_tasks: false }, 201);
+      const other = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の別イベント', dates, generate_tasks: false }, 201);
       eventIds.push(other.id);
       await client.request(`/api/seminars/${other.id}/staff-attendance/${lecturer.id}`, 'PATCH', { ...input, version: lecturer.version }, 404);
       await client.request(path, 'POST', { ...input, name: '不正', responses: { [dates[0]]: 'toString', [dates[1]]: 'ABSENT' } }, 400);
@@ -33,7 +33,7 @@ export async function smokeStaffAttendance(client) {
       await client.request(`${path}/import`, 'POST', { schedule: dates }, 403, { Origin: 'https://untrusted.invalid' });
       await client.request(`${path}/${lecturer.id}`, 'PATCH', { ...input, version: lecturer.version }, 403, { Origin: 'https://untrusted.invalid' });
       await client.request(`${path}/${lecturer.id}`, 'DELETE', { version: lecturer.version }, 403, { Origin: 'https://untrusted.invalid' });
-      const manual = (await json(path, 'POST', { ...input, name: '追加サポート', role: 'SUPPORT' }, 201)).person;
+      const manual = (await json(path, 'POST', { ...input, name: '追加サポート', role: 'SOCIETY_SUPPORT' }, 201)).person;
       const response = await client.request(path);
       assert.equal(response.headers.get('cache-control'), 'no-store');
       const result = await response.json();

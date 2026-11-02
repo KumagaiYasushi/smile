@@ -5,7 +5,7 @@ import { createStaffAttendanceStore } from '../lib/staff-attendance.ts';
 
 const dates = ['2027-06-01', '2027-06-08'];
 const responses = { '2027-06-01': 'ATTENDING', '2027-06-08': 'ABSENT' };
-const input = (extra = {}) => ({ name: '架空講師', role: 'LECTURER', schedule: dates, responses, ...extra });
+const input = (extra = {}) => ({ name: '架空講師', role: 'SOCIETY_LECTURER', schedule: dates, responses, ...extra });
 function fixture() {
   const db = new Database(':memory:');
   db.pragma('foreign_keys=ON');
@@ -26,7 +26,7 @@ test('staff plans store separate dates and roles, can be revised, and never set 
     assert.equal(person.name, '架空講師');
     assert.deepEqual(person.responses, responses);
     for (const status of ['UNANSWERED', 'TENTATIVE', 'ATTENDING', 'ABSENT']) {
-      person = store.update(42, person.id, { ...input({ responses: { ...responses, [dates[0]]: status }, role: 'SUPPORT' }), version: person.version }, 2);
+      person = store.update(42, person.id, { ...input({ responses: { ...responses, [dates[0]]: status }, role: 'SOCIETY_SUPPORT' }), version: person.version }, 2);
       assert.equal(person.responses[dates[0]], status);
       assert.equal(person.responses[dates[1]], 'ABSENT');
     }
@@ -56,7 +56,7 @@ test('importing existing lecturer/support names is idempotent and preserves prio
     assert.equal(store.get(42, person.id).version, 1);
     assert.deepEqual(store.list(42).people[1].responses, { [dates[0]]: 'UNANSWERED', [dates[1]]: 'UNANSWERED' });
     assert.throws(() => store.create(42, input(), 1), { status: 409 });
-    assert.equal(store.create(42, input({ role: 'SUPPORT' }), 1).role, 'SUPPORT');
+    assert.equal(store.create(42, input({ role: 'SOCIETY_SUPPORT' }), 1).role, 'SOCIETY_SUPPORT');
     db.prepare('UPDATE seminars SET lecturer_name=? WHERE id=42').run('変更された講師');
     assert.equal(store.list(42).people[0].name, '架空講師');
     assert.equal(store.importNames(42, { schedule: dates }, 1).added, 1);
@@ -132,5 +132,40 @@ test('audit failures roll back creates, updates, deletes and entire imports; eve
     db.prepare('DELETE FROM seminars WHERE id=42').run();
     assert.equal(db.prepare('SELECT count(*) n FROM event_staff').get().n, 0);
     assert.equal(db.prepare('SELECT count(*) n FROM event_staff_history').get().n, 0);
+  } finally { db.close(); }
+});
+
+test('all three new roles are selectable; legacy role migration preserves IDs, answers, history and sequence', () => {
+  const { db } = fixture();
+  try {
+    db.exec(`DROP TABLE event_staff;
+      CREATE TABLE event_staff (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,
+        name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 200),
+        role TEXT NOT NULL CHECK(role IN ('LECTURER','SUPPORT')),responses_json TEXT NOT NULL DEFAULT '{}',
+        version INTEGER NOT NULL DEFAULT 1,updated_at TEXT NOT NULL DEFAULT 'old-time',UNIQUE(seminar_id,role,name));`);
+    db.prepare('INSERT INTO event_staff(id,seminar_id,name,role,responses_json,version) VALUES(?,?,?,?,?,?)').run(42,42,'架空講師','LECTURER',JSON.stringify(responses),7);
+    db.prepare('INSERT INTO event_staff(id,seminar_id,name,role) VALUES(?,?,?,?)').run(99,42,'削除済','SUPPORT');
+    db.exec('DELETE FROM event_staff WHERE id=99');
+    db.prepare("INSERT INTO event_staff_history(seminar_id,person_id,actor_id,action,after_json) VALUES(42,42,1,'created',?)").run(JSON.stringify({role:'LECTURER',responses}));
+    const store=createStaffAttendanceStore(db);
+    const old=store.get(42,42);
+    assert.equal(old.role,'LECTURER'); assert.equal(old.version,7); assert.equal(old.updated_at,'old-time');
+    assert.deepEqual(old.responses,responses);
+    assert.equal(store.history(42)[0].person_id,42);
+    assert.equal(store.history(42)[0].after.role,'LECTURER');
+    assert.throws(()=>store.create(42,input({role:'LECTURER'}),1), {status:400});
+    assert.throws(()=>store.create(42,input({role:'SUPPORT'}),1), {status:400});
+    assert.equal(store.importNames(42,{schedule:dates},1).added,2);
+    assert.equal(store.importNames(42,{schedule:dates},1).added,0);
+    for(const role of ['EXTERNAL_LECTURER','SOCIETY_LECTURER','SOCIETY_SUPPORT']) {
+      const person=store.create(42,input({role,name:`追加${role}`}),1);
+      assert.ok(person.id>99); assert.equal(person.role,role);
+    }
+    const revised=store.update(42,42,{...input({role:'EXTERNAL_LECTURER'}),version:7},1);
+    assert.equal(revised.role,'EXTERNAL_LECTURER'); assert.deepEqual(revised.responses,responses);
+    createStaffAttendanceStore(db);
+    assert.deepEqual(store.get(42,42),revised);
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);
   } finally { db.close(); }
 });

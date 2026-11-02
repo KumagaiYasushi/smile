@@ -26,7 +26,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
     const ids: number[] = [];
     for (const example of examples) {
       templates.createTemplate({ event_type: example.type, title: '【検証】開催前の準備確認', relative_days: -7, important: true }, actorId);
-      const event = templates.createEvent(() => createSeminar({ event_type: example.type, delivery_method: example.method, name: example.name,
+      const event = templates.createEvent(() => createSeminar({ event_type: example.type, delivery_method: example.method, occurrence_type: example.dates.length > 1 ? 'MULTIPLE' : 'SINGLE', event_times: {}, lecturer_role: 'SOCIETY_LECTURER', name: example.name,
         dates: example.dates, content: '架空データです。編集・保存・日程変更などを試してください。', lecturer_name: '【架空】講師A', assistant_members: ['【架空】サポートA'],
         fee_dental_hygienist: 5000, fee_dentist: 8000, fee_other: 5000, target_participants: '検証用の参加者',
         venue_id: venue.id, venue: '【架空】検証用会議室 / テストルームA / 架空県テスト市 サンプルビル', venue_fee: 15000,
@@ -37,7 +37,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
       }), actorId, true, example.dates[0]);
       ids.push(event.id);
       staff.importNames(event.id, { schedule: example.dates }, actorId);
-      staff.create(event.id, { name: '【架空】外来講師B', role: 'LECTURER', schedule: example.dates,
+      staff.create(event.id, { name: '【架空】外来講師B', role: 'EXTERNAL_LECTURER', schedule: example.dates,
         responses: Object.fromEntries(example.dates.map(date => [date, 'TENTATIVE'])) }, actorId);
       for (const target of ['LECTURER', 'EXTERNAL_LECTURER', 'SUPPORT'] as const) lunch.create(event.id, {
         target, date: example.dates[0], schedule: example.dates, quantity: 1, unit_price: 1200, additional_cost: 0,
@@ -45,7 +45,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
       }, actorId);
       tasks.createTask(event.id, { title: '【検証】会場・昼食の確認', due_date: example.dates[0], assignee_id: actorId, important: true }, actorId);
       createParticipant({ seminar_id: event.id, name: '【架空】参加者A', role: 'dentist', email: 'participant@example.invalid', phone: '',
-        payment_status: 'unpaid', attended: false, receipt_number: 'TEST-001', notes: '画面確認用の架空データ' });
+        payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null, attended: false, receipt_number: 'TEST-001', notes: '画面確認用の架空データ' });
     }
     db.prepare('INSERT INTO verification_samples(version,event_ids_json) VALUES(1,?)').run(JSON.stringify(ids));
     return ids;

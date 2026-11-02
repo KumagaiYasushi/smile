@@ -4,6 +4,11 @@ import fs from 'fs';
 import type { Seminar, SeminarInput } from '@/types/seminar';
 import { emptySocialGathering, parseSocialGathering, mergeSocialGathering } from '../types/social-gathering.ts';
 import { initVenueSchema, validateVenueLink } from './venues.ts';
+import { eventDates, validateOccurrences, parseEventTimes } from '../types/event-schedule.ts';
+import { TaskError } from '../types/task.ts';
+import { parseParticipant } from '../types/participant.ts';
+import type { Participant, ParticipantRole, PaymentStatus, ParticipantFields } from '../types/participant.ts';
+import { initReceiptSchema } from './receipts.ts';
 
 export type { Seminar, SeminarInput } from '@/types/seminar';
 
@@ -100,12 +105,24 @@ function initSchema(db: Database.Database) {
     if (!columns.some((column) => column.name === 'venue_id')) {
       db.exec('ALTER TABLE seminars ADD COLUMN venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL');
     }
+    if (!columns.some(column => column.name === 'occurrence_type')) db.exec("ALTER TABLE seminars ADD COLUMN occurrence_type TEXT CHECK(occurrence_type IN ('SINGLE','MULTIPLE'))");
+    if (!columns.some(column => column.name === 'event_times')) db.exec("ALTER TABLE seminars ADD COLUMN event_times TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(event_times))");
+    if (!columns.some(column => column.name === 'lecturer_role')) db.exec("ALTER TABLE seminars ADD COLUMN lecturer_role TEXT CHECK(lecturer_role IN ('EXTERNAL_LECTURER','SOCIETY_LECTURER'))");
   }).immediate();
+  db.transaction(() => {
+    const columns = db.prepare('PRAGMA table_info(participants)').all() as { name: string }[];
+    if (!columns.some(column => column.name === 'payment_method')) db.exec("ALTER TABLE participants ADD COLUMN payment_method TEXT CHECK(payment_method IN ('bank_transfer','cash','other'))");
+    if (!columns.some(column => column.name === 'paid_amount')) db.exec('ALTER TABLE participants ADD COLUMN paid_amount INTEGER CHECK(paid_amount>=0)');
+    if (!columns.some(column => column.name === 'payment_confirmed_at')) db.exec('ALTER TABLE participants ADD COLUMN payment_confirmed_at TEXT');
+    if (!columns.some(column => column.name === 'payment_confirmed_by')) db.exec('ALTER TABLE participants ADD COLUMN payment_confirmed_by INTEGER');
+  }).immediate();
+  initReceiptSchema(db);
 }
 
 // ─── Seminar ─────────────────────────────────────────────────────────────────
 
-type SeminarRow = Omit<Seminar, 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+type SeminarRow = Omit<Seminar, 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+  event_times: string;
   social_gathering: string;
   dates: string;
   assistant_members: string;
@@ -119,6 +136,7 @@ type SeminarRow = Omit<Seminar, 'social_gathering' | 'dates' | 'assistant_member
 function rowToSeminar(row: SeminarRow): Seminar {
   return {
     ...row,
+    event_times: JSON.parse(row.event_times),
     social_gathering: JSON.parse(row.social_gathering),
     dates: JSON.parse(row.dates),
     assistant_members: JSON.parse(row.assistant_members),
@@ -144,23 +162,30 @@ export function getSeminarById(id: number): Seminar | null {
 
 export function createSeminar(input: SeminarInput): Seminar {
   const db = getDb();
+  const dates = eventDates(input.dates);
+  const occurrence = validateOccurrences(input.occurrence_type, dates);
+  const times = parseEventTimes(input.event_times === undefined ? {} : input.event_times, dates);
+  validateLecturerRole(input.lecturer_role);
   const stmt = db.prepare(`
     INSERT INTO seminars (
       event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
       fee_dental_hygienist, fee_dentist, fee_other, target_participants,
-      venue, venue_id, venue_fee, sns_announcement,
+      venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role,
       lecturer_invitation_sent, photo_received, abstract_300_requested,
       abstract_800_requested, receipt_issued, notes
     ) VALUES (
       @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
       @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants,
-      @venue, @venue_id, @venue_fee, @sns_announcement,
+      @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role,
       @lecturer_invitation_sent, @photo_received, @abstract_300_requested,
       @abstract_800_requested, @receipt_issued, @notes
     )
   `);
   const result = stmt.run({
     ...input,
+    occurrence_type: occurrence,
+    event_times: JSON.stringify(times),
+    lecturer_role: input.lecturer_role ?? null,
     delivery_method: input.delivery_method ?? null,
     venue_id: validateVenueLink(db, input.venue_id === undefined ? null : input.venue_id),
     social_gathering: JSON.stringify(parseSocialGathering(input.social_gathering === undefined ? emptySocialGathering() : input.social_gathering)),
@@ -181,6 +206,13 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
   if (!current) return null;
 
   const merged = { ...current, ...input };
+  const dates = eventDates(merged.dates);
+  if (input.occurrence_type !== undefined || input.dates !== undefined) validateOccurrences(merged.occurrence_type, dates);
+  validateLecturerRole(merged.lecturer_role);
+  const times = input.event_times === undefined ? current.event_times : {
+    ...Object.fromEntries(Object.entries(current.event_times).filter(([date]) => !dates.includes(date))),
+    ...parseEventTimes(input.event_times, dates),
+  };
   db.prepare(`
     UPDATE seminars SET
       event_type = @event_type, delivery_method = @delivery_method, social_gathering = @social_gathering, name = @name, dates = @dates, content = @content,
@@ -190,10 +222,13 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
       venue = @venue, venue_id = @venue_id, venue_fee = @venue_fee, sns_announcement = @sns_announcement,
       lecturer_invitation_sent = @lecturer_invitation_sent, photo_received = @photo_received,
       abstract_300_requested = @abstract_300_requested, abstract_800_requested = @abstract_800_requested,
-      receipt_issued = @receipt_issued, notes = @notes
+      receipt_issued = @receipt_issued, notes = @notes, occurrence_type=@occurrence_type, event_times=@event_times, lecturer_role=@lecturer_role
     WHERE id = @id
   `).run({
     id,
+    occurrence_type: merged.occurrence_type,
+    event_times: JSON.stringify(times),
+    lecturer_role: merged.lecturer_role,
     event_type: merged.event_type,
     delivery_method: merged.delivery_method,
     social_gathering: JSON.stringify(input.social_gathering === undefined ? current.social_gathering : mergeSocialGathering(current.social_gathering, input.social_gathering)),
@@ -226,25 +261,13 @@ export function deleteSeminar(id: number): boolean {
   return result.changes > 0;
 }
 
+function validateLecturerRole(value: unknown) {
+  if (value != null && !['EXTERNAL_LECTURER', 'SOCIETY_LECTURER'].includes(value as string)) throw new TaskError('講師区分が不正です');
+}
+
 // ─── Participant ─────────────────────────────────────────────────────────────
 
-export type ParticipantRole = 'dental_hygienist' | 'dentist' | 'other';
-export type PaymentStatus = 'unpaid' | 'paid';
-
-export type Participant = {
-  id: number;
-  seminar_id: number;
-  name: string;
-  role: ParticipantRole;
-  email: string;
-  phone: string;
-  payment_status: PaymentStatus;
-  attended: boolean;
-  receipt_number: string;
-  notes: string;
-  created_at: string;
-  updated_at: string;
-};
+export type { Participant, ParticipantRole, PaymentStatus };
 
 type ParticipantRow = Omit<Participant, 'attended'> & { attended: number };
 
@@ -255,41 +278,68 @@ function rowToParticipant(row: ParticipantRow): Participant {
 export function getParticipantsBySeminar(seminarId: number): Participant[] {
   const db = getDb();
   const rows = db
-    .prepare('SELECT * FROM participants WHERE seminar_id = ? ORDER BY created_at ASC')
+    .prepare('SELECT p.*,r.id AS issued_receipt_id,r.issued_at AS receipt_issued_at FROM participants p LEFT JOIN participant_receipts r ON r.participant_id=p.id WHERE p.seminar_id = ? ORDER BY p.created_at ASC')
     .all(seminarId) as ParticipantRow[];
   return rows.map(rowToParticipant);
 }
 
 export function getParticipantById(id: number): Participant | null {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM participants WHERE id = ?').get(id) as ParticipantRow | undefined;
+  const row = db.prepare('SELECT p.*,r.id AS issued_receipt_id,r.issued_at AS receipt_issued_at FROM participants p LEFT JOIN participant_receipts r ON r.participant_id=p.id WHERE p.id = ?').get(id) as ParticipantRow | undefined;
   return row ? rowToParticipant(row) : null;
 }
 
-export type ParticipantInput = Omit<Participant, 'id' | 'created_at' | 'updated_at'>;
+export type ParticipantInput = ParticipantFields & { seminar_id: number };
 
-export function createParticipant(input: ParticipantInput): Participant {
+export function createParticipant(input: ParticipantInput, actorId: number | null = null): Participant {
   const db = getDb();
-  const result = db.prepare(`
-    INSERT INTO participants (seminar_id, name, role, email, phone, payment_status, attended, receipt_number, notes)
-    VALUES (@seminar_id, @name, @role, @email, @phone, @payment_status, @attended, @receipt_number, @notes)
-  `).run({ ...input, attended: input.attended ? 1 : 0 });
-  return getParticipantById(result.lastInsertRowid as number)!;
+  return db.transaction(() => {
+    const { seminar_id, ...fields } = input;
+    const data = parseParticipant(fields);
+    const confirmation = paymentConfirmation(db, data, null, actorId);
+    const result = db.prepare(`INSERT INTO participants(seminar_id,name,role,email,phone,payment_status,payment_method,paid_amount,payment_confirmed_at,payment_confirmed_by,attended,receipt_number,notes)
+      VALUES(@seminar_id,@name,@role,@email,@phone,@payment_status,@payment_method,@paid_amount,@payment_confirmed_at,@payment_confirmed_by,@attended,@receipt_number,@notes)`)
+      .run({ ...data, ...confirmation, seminar_id, attended: data.attended ? 1 : 0 });
+    const created = getParticipantById(Number(result.lastInsertRowid))!;
+    paymentHistory(db, created, null, actorId);
+    return created;
+  }).immediate();
 }
 
-export function updateParticipant(id: number, input: Partial<Omit<ParticipantInput, 'seminar_id'>>): Participant | null {
+export function updateParticipant(id: number, input: Partial<ParticipantFields>, actorId: number | null = null): Participant | null {
   const db = getDb();
-  const current = getParticipantById(id);
-  if (!current) return null;
-  const merged = { ...current, ...input };
-  db.prepare(`
-    UPDATE participants SET
-      name = @name, role = @role, email = @email, phone = @phone,
-      payment_status = @payment_status, attended = @attended,
-      receipt_number = @receipt_number, notes = @notes
-    WHERE id = @id
-  `).run({ ...merged, id, attended: merged.attended ? 1 : 0 });
-  return getParticipantById(id);
+  return db.transaction(() => {
+    const current = getParticipantById(id);
+    if (!current) return null;
+    const merged = parseParticipant(input, current);
+    if (current.issued_receipt_id && (merged.payment_status !== 'paid' || merged.payment_method !== current.payment_method || merged.paid_amount !== current.paid_amount || merged.receipt_number !== current.receipt_number)) throw new TaskError('領収書発行済みの入金情報・領収書番号は変更できません', 409);
+    const confirmation = input.payment_status === 'paid' || current.payment_status !== merged.payment_status || ('paid_amount' in input && merged.paid_amount !== current.paid_amount)
+      ? paymentConfirmation(db, merged, current, actorId)
+      : { payment_confirmed_at: current.payment_confirmed_at, payment_confirmed_by: current.payment_confirmed_by };
+    db.prepare(`
+      UPDATE participants SET
+        name = @name, role = @role, email = @email, phone = @phone,
+        payment_status = @payment_status, attended = @attended,
+        receipt_number = @receipt_number, notes = @notes, payment_method=@payment_method, paid_amount=@paid_amount,
+        payment_confirmed_at=@payment_confirmed_at,payment_confirmed_by=@payment_confirmed_by
+      WHERE id = @id
+    `).run({ ...merged, ...confirmation, id, attended: merged.attended ? 1 : 0 });
+    const updated = getParticipantById(id)!;
+    paymentHistory(db, updated, current, actorId);
+    return updated;
+  }).immediate();
+}
+
+function paymentConfirmation(db: Database.Database, input: ParticipantFields, current: Participant | null, actorId: number | null) {
+  if (input.payment_status === 'unpaid') return { payment_confirmed_at: null, payment_confirmed_by: null };
+  if (input.paid_amount === null) throw new TaskError('入金を確認した金額を入力してください');
+  if (!actorId || !db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId)) throw new TaskError('入金確認には有効な運営メンバーのログインが必要です', 403);
+  return { payment_confirmed_at: current?.payment_confirmed_at ?? new Date().toISOString(), payment_confirmed_by: current?.payment_confirmed_by ?? actorId };
+}
+function paymentHistory(db: Database.Database, after: Participant, before: Participant | null, actorId: number | null) {
+  const snapshot = (p: Participant) => ({ payment_status: p.payment_status, payment_method: p.payment_method, paid_amount: p.paid_amount, payment_confirmed_at: p.payment_confirmed_at });
+  const next = JSON.stringify(snapshot(after)), previous = before ? JSON.stringify(snapshot(before)) : null;
+  if (next !== previous) db.prepare('INSERT INTO participant_payment_history(seminar_id,participant_id,actor_id,before_json,after_json) VALUES(?,?,?,?,?)').run(after.seminar_id, after.id, actorId, previous, next);
 }
 
 export function deleteParticipant(id: number): boolean {
