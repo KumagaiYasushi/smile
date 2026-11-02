@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createTemplateStore} from '../lib/task-templates.ts';
 
 export async function keepSchedule(client, eventId, dates) {
   const preview = (await (await client.request(`/api/seminars/${eventId}/schedule-preview`, 'POST', { dates })).json()).preview;
@@ -6,12 +7,15 @@ export async function keepSchedule(client, eventId, dates) {
     decisions: preview.items.map((item) => ({ task_id: item.task_id, action: 'keep' })) });
 }
 
-export async function smokeReschedule(client) {
+export async function smokeReschedule(client,db) {
   const json = async (...args) => (await client.request(...args)).json();
   const { template } = await json('/api/task-templates', 'POST', { event_type: 'SEMINAR', title: '架空の日程変更検証', relative_days: -30 }, 201);
   let event;
   try {
     event = await json('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空の日程変更', dates: ['2027-01-01'], venue: 'original' }, 201);
+    // Historical generated-task fixture: generation is no longer exposed by the app.
+    const actor=(await json('/api/auth/me')).user.id;
+    createTemplateStore(db).createEvent(()=>event,actor,true,event.dates[0]);
     const root = `/api/seminars/${event.id}`;
     await client.request(`/seminars/${event.id}/reschedule`);
     let generated = (await json(`${root}/tasks`)).tasks[0];

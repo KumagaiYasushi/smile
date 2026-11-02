@@ -42,11 +42,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [sessionMethods,setSessionMethods]=useState<SessionMethods>(initial ? {...Object.fromEntries((initial.dates??[]).filter(()=>initial.delivery_method).map(date=>[date,initial.delivery_method!])),...initial.session_delivery_methods} : {});
   const [repeatFees,setRepeatFees]=useState<Record<'dental_hygienist'|'dentist'|'other',string>>(()=>Object.fromEntries(Object.entries(initial?.repeat_fees??emptyRepeatFees()).map(([role,fee])=>[role,fee===null?'':String(fee)])) as Record<'dental_hygienist'|'dentist'|'other',string>);
   const [lecturerRole, setLecturerRole] = useState(initial?.lecturer_role ?? '');
-  const [generateTasks, setGenerateTasks] = useState(true);
-  const [taskBaseDate, setTaskBaseDate] = useState('');
   const validDates = [...new Set(dates.filter(Boolean))];
   const allOnline = validDates.length ? validDates.every(date=>sessionMethods[date]==='ONLINE') : deliveryMethod==='ONLINE';
-  const baseDate = validDates.includes(taskBaseDate) ? taskBaseDate : validDates.length === 1 ? validDates[0] : '';
   const [content, setContent] = useState(initial?.content ?? '');
   const [lecturerName, setLecturerName] = useState(initial?.lecturer_name ?? '');
   const [assistants, setAssistants] = useState<string[]>(
@@ -101,7 +98,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
       await onSubmit({
-        ...(!initial?.id ? { generate_tasks: generateTasks && validDates.length>0, ...(generateTasks && baseDate ? { task_base_date: baseDate } : {}) } : {}),
         registration: registration.payload(validDates),
         event_type: eventType,
         delivery_method: methods[validDates[0]]??deliveryMethod,
@@ -173,18 +169,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
           </select>
         </Field>
         <p className="text-xs text-slate-500">単回は1日、複数回は開催日を追加できます。日程未定でも開催回数は選択してください。</p>
-        {!initial?.id && <div className="rounded-xl bg-sky-50 p-4 space-y-3 text-sm">
-          <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={generateTasks} onChange={(e) => setGenerateTasks(e.target.checked)} />種別のテンプレートからタスクを自動生成する</label>
-          <p>有効なテンプレートがある場合、開催日を基準に期限を計算します。担当者は作成後に割り当てられます。</p>
-          <Link href="/task-templates" className="inline-block text-sky-800 underline">タスクテンプレートを管理</Link>
-          {generateTasks && validDates.length > 0 && <label className="block font-medium">タスク期限の基準日
-            <select aria-label="タスク期限の基準日" required value={baseDate} onChange={(e) => setTaskBaseDate(e.target.value)} className={inputClass}>
-              <option value="">開催日から選択してください</option>
-              {validDates.map((date) => <option key={date} value={date}>{date}</option>)}
-            </select>
-          </label>}
-          {generateTasks && validDates.length === 0 && <p>日程未定でも登録できます。タスクは日程確定後にプレビューして追加してください。</p>}
-        </div>}
         <Field label="日程">
           {initial?.id ? <div className="space-y-2 text-sm">
             <p>{validDates.join('、') || '日程未定'}</p>

@@ -76,7 +76,7 @@ export default function TemplatesPage() {
   const visible = templates.filter((template) => template.event_type === type);
   return <div className="space-y-5">
     <h1 className="text-2xl font-bold text-slate-800">タスクテンプレート</h1>
-    <p className="text-sm text-slate-600">運営実績に合わせたタスクと期限の日数を、イベント種別ごとに登録できます。有効なテンプレートは新規イベントの作成時に使用します。生成済みのタスクには変更を反映しません。</p>
+    <p className="text-sm text-slate-600">運営実績に合わせたタスクと期限の日数を、イベント種別ごとに登録できます。テンプレートからのタスク生成は現在停止しています。保存済みのテンプレートは保管・編集でき、既存のタスクには変更を反映しません。</p>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
     <label className="block max-w-sm text-sm">イベント種別<select aria-label="イベント種別" disabled={editing !== undefined} value={type} onChange={(e) => setType(e.target.value as EventType)} className={fieldClass}>{Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

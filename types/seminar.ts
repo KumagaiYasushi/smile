@@ -67,7 +67,7 @@ export type Seminar = {
 };
 
 export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at'>;
-export type SeminarSubmission = Omit<SeminarInput,'delivery_method'> & { delivery_method?:DeliveryMethod|null; generate_tasks?: boolean; task_base_date?: string; registration?:EventRegistration };
+export type SeminarSubmission = Omit<SeminarInput,'delivery_method'> & { delivery_method?:DeliveryMethod|null; registration?:EventRegistration };
 
 export const CHECKLIST_ITEMS: { key: keyof Pick<Seminar, 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'>; label: string }[] = [
   { key: 'lecturer_invitation_sent', label: '講師依頼状' },

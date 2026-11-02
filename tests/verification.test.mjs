@@ -32,8 +32,8 @@ test('verification setup uses a separate DB/key, seeds all features once, and pr
     assert.equal(db.prepare('SELECT count(*) n FROM venues').get().n, 1);
     assert.equal(db.prepare('SELECT count(*) n FROM event_staff').get().n, 9);
     assert.equal(db.prepare('SELECT count(*) n FROM participants').get().n, 3);
-    assert.equal(db.prepare('SELECT count(*) n FROM task_templates').get().n, 3);
-    assert.equal(db.prepare('SELECT count(*) n FROM event_tasks').get().n, 6);
+    assert.equal(db.prepare('SELECT count(*) n FROM task_templates').get().n, 0);
+    assert.equal(db.prepare('SELECT count(*) n FROM event_tasks').get().n, 3);
     assert.equal(db.prepare("SELECT count(*) n FROM event_lunch_plans WHERE json_extract(input_json,'$.target')='EXTERNAL_LECTURER'").get().n, 3);
     db.prepare('UPDATE seminars SET notes=? WHERE id=1').run('手動編集を保持');
     execFileSync(process.execPath, [script, 'setup', 'verifier@example.invalid'], { env, input: '', stdio: 'pipe' });

@@ -109,7 +109,7 @@ try {
   await smokeEventTypes(base, member.cookie());
   await smokeTasks(member);
   await smokeTemplates(member);
-  await smokeReschedule(member);
+  await smokeReschedule(member,db);
   await smokeDashboard(member);
   await smokeStaffAttendance(member);
   await smokeSocialGathering(member);

@@ -4,7 +4,7 @@
 
 開発の現状と順序は [開発計画](docs/development-plan.md)、ログインの初回設定と検証方法は [認証基盤](docs/authentication.md) を参照してください。
 イベント別の手動タスク管理は [タスク・期限管理](docs/tasks.md) を参照してください。
-種別ごとのテンプレートと期限の逆算生成は [タスクテンプレート](docs/task-templates.md) を参照してください。
+タスクテンプレートの保管・編集と生成停止については [タスクテンプレート](docs/task-templates.md) を参照してください。
 開催日変更時の期限の確認・更新は [開催日・期限変更](docs/reschedule.md) を参照してください。
 イベントを横断した期限・担当の集計は [タスクダッシュボード](docs/dashboard.md) を参照してください。
 開催方法の3択と既存データの扱いは [開催方法](docs/delivery-methods.md) を参照してください。

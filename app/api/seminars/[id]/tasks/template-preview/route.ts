@@ -1,13 +1,7 @@
 import { NextRequest } from 'next/server';
-import { requireMember } from '@/lib/auth-server';
-import { taskResponse } from '@/lib/task-server';
-import { generationInput, templateStore } from '@/lib/template-server';
-import { parseId } from '@/types/task';
+import { requireMember, privateJson } from '@/lib/auth-server';
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest) {
   const denied = await requireMember(request); if (denied) return denied;
-  return taskResponse(async () => {
-    const input = generationInput(await request.json());
-    return { preview: templateStore().preview(parseId((await params).id), input.baseDate) };
-  });
+  return privateJson({ error: 'テンプレートからのタスク生成は停止しています。タスクを個別に追加してください。' }, 410);
 }

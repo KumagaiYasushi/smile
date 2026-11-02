@@ -3,9 +3,7 @@ import { getAllSeminars, createSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
 import { currentUser, requireMember } from '@/lib/auth-server';
 import { createEventRegistrationStore } from '@/lib/event-registration';
-import { templateStore } from '@/lib/template-server';
 import { TaskError } from '@/types/task';
-import { requireDate } from '@/types/task-template';
 import { emptySocialGathering, parseSocialGathering } from '@/types/social-gathering';
 
 export async function GET(request: NextRequest) {
@@ -31,10 +29,9 @@ export async function POST(request: NextRequest) {
     }
     if ('delivery_method' in body && !isDeliveryMethod(body.delivery_method)) throw new TaskError('開催方法が不正です');
     if (body.generate_tasks !== undefined && typeof body.generate_tasks !== 'boolean') throw new TaskError('タスク自動生成の指定が不正です');
-    const baseDate = body.task_base_date === undefined ? undefined : requireDate(body.task_base_date);
     const gathering = body.social_gathering === undefined ? emptySocialGathering() : parseSocialGathering(body.social_gathering);
     const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
-    const seminar = createEventRegistrationStore(getDb()).save(()=>templateStore().createEvent(() => createSeminar({
+    const seminar = createEventRegistrationStore(getDb()).save(()=>createSeminar({
       event_type: body.event_type ?? 'SEMINAR',
       delivery_method: body.delivery_method ?? null,
       occurrence_type: body.occurrence_type,
@@ -63,7 +60,7 @@ export async function POST(request: NextRequest) {
       abstract_800_requested: Boolean(body.abstract_800_requested),
       receipt_issued: Boolean(body.receipt_issued),
       notes: body.notes ?? '',
-    }), actor.id, body.generate_tasks ?? true, baseDate),body.registration,actor.id);
+    }),body.registration,actor.id);
     return NextResponse.json(seminar, { status: 201 });
   } catch (error) {
     if (error instanceof TaskError) return NextResponse.json({ error: error.message }, { status: error.status });

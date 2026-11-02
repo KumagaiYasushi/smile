@@ -12,7 +12,8 @@ export function seedVerification(db: Database.Database, actorId: number): number
   if (process.env.SMILE_VERIFICATION_MODE !== '1') throw new Error('検証専用環境でのみ初期化できます');
   db.exec('CREATE TABLE IF NOT EXISTS verification_samples(version INTEGER PRIMARY KEY,event_ids_json TEXT NOT NULL)');
   const venues = createVenueStore(db), staff = createStaffAttendanceStore(db), lunch = createLunchStore(db);
-  const tasks = createTaskStore(db), templates = createTemplateStore(db);
+  const tasks = createTaskStore(db);
+  createTemplateStore(db); // Keep the historical schema without generating tasks.
   return db.transaction(() => {
     const existing = db.prepare('SELECT event_ids_json FROM verification_samples WHERE version=1').get() as { event_ids_json: string } | undefined;
     if (existing) return JSON.parse(existing.event_ids_json) as number[];
@@ -25,8 +26,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
     ];
     const ids: number[] = [];
     for (const example of examples) {
-      templates.createTemplate({ event_type: example.type, title: '【検証】開催前の準備確認', relative_days: -7, important: true }, actorId);
-      const event = templates.createEvent(() => createSeminar({ event_type: example.type, delivery_method: example.method, occurrence_type: example.dates.length > 1 ? 'MULTIPLE' : 'SINGLE', session_delivery_methods: {}, repeat_fees: {dental_hygienist:null,dentist:null,other:null}, event_times: {}, external_lecturer:{status:'NO',id:null,name:'',facility:''}, lecturer_role: 'SOCIETY_LECTURER', name: example.name,
+      const event = createSeminar({ event_type: example.type, delivery_method: example.method, occurrence_type: example.dates.length > 1 ? 'MULTIPLE' : 'SINGLE', session_delivery_methods: {}, repeat_fees: {dental_hygienist:null,dentist:null,other:null}, event_times: {}, external_lecturer:{status:'NO',id:null,name:'',facility:''}, lecturer_role: 'SOCIETY_LECTURER', name: example.name,
         dates: example.dates, content: '架空データです。編集・保存・日程変更などを試してください。', lecturer_name: '【架空】講師A', assistant_members: ['【架空】サポートA'],
         fee_dental_hygienist: 5000, fee_dentist: 8000, fee_other: 5000, target_participants: '検証用の参加者',
         venue_id: venue.id, venue: '【架空】検証用会議室 / テストルームA / 架空県テスト市 サンプルビル', venue_fee: 15000,
@@ -34,7 +34,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
         receipt_issued: false, notes: '実際の申込・注文・外部送信は発生しません。',
         social_gathering: example.method === 'ONLINE' ? emptySocialGathering() : { status: 'HELD', start_at: `${example.dates[0]}T18:30`,
           end_at: `${example.dates[0]}T20:30`, venue: '【架空】サンプルレストラン', fee: 5000 },
-      }), actorId, true, example.dates[0]);
+      });
       ids.push(event.id);
       staff.importNames(event.id, { schedule: example.dates }, actorId);
       staff.create(event.id, { name: '【架空】外来講師B', role: 'EXTERNAL_LECTURER', schedule: example.dates,

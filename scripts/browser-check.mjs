@@ -11,6 +11,7 @@ import Database from 'better-sqlite3';
 import { chromium } from 'playwright';
 import { expect } from 'playwright/test';
 import { createAuthStore, totpCode } from '../lib/auth.ts';
+import {createTemplateStore} from '../lib/task-templates.ts';
 
 // Synthetic credentials live only in memory and in a temporary database.
 // No traces/HAR files are recorded: they could contain passwords or MFA enrollment keys.
@@ -268,9 +269,8 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByLabel('2027-08-08の開催方法',{exact:true}).selectOption('ONLINE');
     await page.getByLabel('歯科医師（円）',{exact:true}).fill('10001');
     await page.getByLabel('歯科医師・再受講1回（円）',{exact:true}).fill('550');
-    await page.getByRole('button',{name:'登録する',exact:true}).click();
-    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('タスク期限の基準日');
-    await page.getByLabel('タスク期限の基準日',{exact:true}).selectOption('2027-08-01');
+    await expect(page.getByLabel('タスク期限の基準日',{exact:true})).toHaveCount(0);
+    await expect(page.getByRole('checkbox',{name:'種別のテンプレートからタスクを自動生成する',exact:true})).toHaveCount(0);
     await page.route(`${base}/api/seminars`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'検証用のイベント保存エラー'})}),{times:1});
     await page.getByRole('button',{name:'登録する',exact:true}).click();
     await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用のイベント保存エラー');
@@ -342,7 +342,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByRole('status')).toContainText('保存しました');
     await layout('テンプレート管理');
   });
-  await step('イベント作成とテンプレート自動生成', async () => {
+  await step('イベント作成時にタスクを生成しない', async () => {
     await page.getByRole('link', { name: '＋ 新規イベント', exact: true }).click();
     await page.getByLabel('セミナー名', { exact: false }).fill(eventName);
     await expect(page.getByLabel(/^開催方法(?:\s*\*)?$/)).toHaveCount(0);
@@ -379,8 +379,10 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     assert.ok(eventId > 0);
     assert.equal(db.prepare('SELECT venue_id FROM seminars WHERE id=?').get(eventId).venue_id, venueId);
     assert.equal(db.prepare('SELECT delivery_method FROM seminars WHERE id=?').get(eventId).delivery_method, method);
-    assert.equal(db.prepare('SELECT count(*) n FROM event_tasks WHERE seminar_id=?').get(eventId).n, 1);
-    assert.equal(db.prepare('SELECT due_date FROM event_tasks WHERE seminar_id=?').get(eventId).due_date, '2027-05-02');
+    assert.equal(db.prepare('SELECT count(*) n FROM event_tasks WHERE seminar_id=?').get(eventId).n, 0);
+    // Preserve regression coverage for tasks generated before this feature was removed.
+    const oldEvent=db.prepare('SELECT id,dates,event_type FROM seminars WHERE id=?').get(eventId);oldEvent.dates=JSON.parse(oldEvent.dates);
+    createTemplateStore(db).createEvent(()=>oldEvent,1,true,oldEvent.dates[0]);
     assert.equal(db.prepare('SELECT occurrence_type FROM seminars WHERE id=?').get(eventId).occurrence_type, 'MULTIPLE');
     assert.equal(db.prepare('SELECT event_times FROM seminars WHERE id=?').get(eventId).event_times, '{}');
     await expect(page.getByText(/^2027年6月1日(?:現地開催|オンライン)/)).toBeVisible();
@@ -656,7 +658,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByLabel('状態で絞り込み', { exact: true }).selectOption('ALL');
     await page.getByLabel('表示対象', { exact: true }).selectOption('ALL');
   });
-  await step('テンプレート編集・有効切替・既存イベントへの確認付き追加', async () => {
+  await step('テンプレート編集保持・追加生成操作の削除', async () => {
     await page.getByRole('link', { name: 'タスクテンプレート', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'タスクテンプレート', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '編集', exact: true }).click();
@@ -676,14 +678,9 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
     await expect(editor).toBeHidden();
     await page.goto(`${base}/seminars/${eventId}/tasks`);
-    await page.getByRole('button', { name: '生成予定をプレビュー', exact: true }).click();
-    await expect(page.getByText(/追加予定 1件・適用済み 1件/)).toBeVisible();
-    page.once('dialog', (dialog) => dialog.accept());
-    await page.getByRole('button', { name: '確認して追加する', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'UI検証・追加テンプレート', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: '生成予定をプレビュー', exact: true }).click();
-    await expect(page.getByText(/追加予定 0件・適用済み 2件/)).toBeVisible();
-    assert.equal(db.prepare('SELECT count(*) n FROM event_tasks WHERE seminar_id=?').get(eventId).n, 3);
+    await expect(page.getByRole('button',{name:'生成予定をプレビュー',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('heading',{name:'テンプレートからタスクを追加',exact:true})).toHaveCount(0);
+    assert.equal(db.prepare('SELECT count(*) n FROM event_tasks WHERE seminar_id=?').get(eventId).n,2);
     assert.equal(db.prepare('SELECT description FROM event_tasks WHERE title=?').get('UI検証・開催前の準備').description, '');
   });
   await step('ダッシュボードの絞り込みと期間変更', async () => {
