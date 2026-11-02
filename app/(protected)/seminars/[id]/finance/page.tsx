@@ -1,0 +1,28 @@
+'use client';
+import {use,useEffect,useState} from 'react';
+import Link from 'next/link';
+import {apiJson} from '@/lib/client-api';
+import type {FinanceSettings,EventEstimate} from '@/types/event-finance';
+const money=(value:string|number|null)=>value===null?'未定':`¥${BigInt(value).toLocaleString('ja-JP')}`;
+type Data={settings:FinanceSettings;version:number;estimate:EventEstimate};
+export default function FinancePage({params}:{params:Promise<{id:string}>}){
+  const {id}=use(params),endpoint=`/api/seminars/${id}/finance`;
+  const [data,setData]=useState<Data|null>(null),[draft,setDraft]=useState<FinanceSettings|null>(null),[name,setName]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[dirty,setDirty]=useState(false);
+  useEffect(()=>{const controller=new AbortController();Promise.all([apiJson(endpoint,{signal:controller.signal}),apiJson(`/api/seminars/${id}`,{signal:controller.signal})]).then(([result,event])=>{setData(result);setDraft(result.settings);setName(event.name);}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return()=>controller.abort();},[endpoint,id]);
+  async function reload(){if(dirty&&!confirm('編集中の見積もり設定を破棄して最新の内容を取得しますか？'))return;setBusy(true);setError('');setNotice('');try{const result=await apiJson(endpoint);setData(result);setDraft(result.settings);setDirty(false);}catch(e){setError(e instanceof Error?e.message:'再取得できませんでした');}finally{setBusy(false);}}
+  async function save(e:React.FormEvent){e.preventDefault();if(!data||!draft)return;setBusy(true);setError('');setNotice('');try{const result=await apiJson(endpoint,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...draft,version:data.version})});setData(result);setDraft(result.settings);setDirty(false);setNotice('見積もり設定を保存しました');}catch(e){setError(e instanceof Error?e.message:'保存できませんでした');}finally{setBusy(false);}}
+  const estimate=data?.estimate;
+  return <div className="space-y-6"><Link href={`/seminars/${id}`} className="text-sm text-sky-800 underline">← イベント詳細へ</Link><h1 className="text-2xl font-bold">収支見積もり</h1><p>{name}</p>
+    {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}{notice&&<p role="status" className="rounded-lg bg-green-50 p-3 text-green-700">{notice}</p>}
+    <button type="button" disabled={busy} onClick={reload} className="rounded-lg border bg-white px-4 py-2 text-sm">最新の見積もりを取得</button>
+    {!data&&!error&&<p>見積もりを読み込み中…</p>}
+    {estimate&&<><p className="text-sm text-slate-600">参加費収入は未入金を含む申込人数×職種別の通常参加費（複数回は合計金額）です。再受講・割引などは調整欄で補正します。入金額は参考表示です。懇親会の会計は別に確認します。</p>
+      <div className="grid gap-3 sm:grid-cols-3">{[['収入小計',estimate.income],['支出小計',estimate.expenses],['差引見込み',estimate.balance]].map(([label,value])=><section key={label} className="min-w-0 rounded-xl border bg-white p-4"><h2 className="text-sm text-slate-600">{label}</h2><p className="mt-2 break-all text-xl font-bold">{money(value)}</p></section>)}</div>
+      {!!estimate.unknown.length&&<p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">未定の項目：{estimate.unknown.join('・')}。小計には入力済みの金額だけを含みます。</p>}
+      {dirty&&<p className="text-sm text-amber-900">設定を編集中です。保存すると下の見積もりへ反映します。</p>}
+      <div className="grid gap-6 md:grid-cols-2"><section className="rounded-xl border bg-white p-4"><h2 className="mb-3 text-lg font-bold">収入</h2><ul className="space-y-2 text-sm">{estimate.counts.map(row=><li key={row.role}>{({dental_hygienist:'歯科衛生士',dentist:'歯科医師',other:'その他'} as Record<string,string>)[row.role]}：{row.count}名 × {money(row.unit)} ＝ {money(row.total)}</li>)}<li>参加費収入：{money(estimate.participation)}（申込 {estimate.participant_count}名）</li><li>参加費調整：{money(data.settings.participation_adjustment)}</li><li>協賛費：{money(data.settings.sponsorship)}</li><li className="border-t pt-2 text-slate-600">確認済み入金額（参考）：{money(estimate.paid)}</li></ul></section>
+      <section className="rounded-xl border bg-white p-4"><h2 className="mb-3 text-lg font-bold">支出</h2><ul className="space-y-2 text-sm">{[['お車代',estimate.travel],['謝礼',estimate.honorarium],['会場費',estimate.venue],['昼食費',estimate.lunch],['その他支出',data.settings.other_expenses]].map(([label,value])=><li key={String(label)}>{label}：{money(value)}{label==='昼食費'&&estimate.lunch_unknown>0&&`（ほか未定 ${estimate.lunch_unknown}件）`}</li>)}</ul></section></div>
+    </>}
+    {draft&&<form onSubmit={save} aria-label="見積もり設定" className="space-y-4 rounded-xl border bg-white p-4"><h2 className="text-lg font-bold">協賛費・金額調整</h2><div className="grid gap-4 sm:grid-cols-3">{([['sponsorship','協賛費（円）'],['participation_adjustment','参加費収入の調整（円）'],['other_expenses','その他支出（円）']] as const).map(([key,label])=><label key={key} className="block min-w-0 text-sm">{label}<input aria-label={label} type="number" min={key==='participation_adjustment'?-Number.MAX_SAFE_INTEGER:0} max={Number.MAX_SAFE_INTEGER} step={1} required={key==='participation_adjustment'} value={draft[key]??''} onChange={e=>{setDraft({...draft,[key]:e.target.value===''?null:Number(e.target.value)});setDirty(true);}} className="mt-1 block w-full min-w-0 rounded-lg border p-2"/></label>)}</div><p className="text-xs text-slate-600">調整額は追加収入をプラス、割引・再受講の差額をマイナスで入力します。空欄は未定、0は0円です。</p><label className="block text-sm">見積もりメモ<textarea aria-label="見積もりメモ" maxLength={2000} rows={3} value={draft.notes} onChange={e=>{setDraft({...draft,notes:e.target.value});setDirty(true);}} className="mt-1 block w-full rounded-lg border p-2"/></label><button disabled={busy} className="rounded-lg bg-sky-800 px-5 py-2 text-white disabled:opacity-50">{busy?'保存中…':'見積もり設定を保存'}</button></form>}
+  </div>;
+}

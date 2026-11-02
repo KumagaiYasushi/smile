@@ -112,7 +112,7 @@ export default function LunchPage({ params }: { params: Promise<{ id: string }> 
         </div>
         <p className="mt-3 text-sm">{lunchTargets(plan).map(target=>`${LUNCH_TARGET_LABELS[target]}：${lunchQuantities(plan)[target]??'未定'}個`).join(' ／ ')}</p>
         <dl className="mt-4 space-y-2 text-sm">
-          {[['対象の詳細', plan.target_details || '未設定'], ['人数・食数', plan.quantity === null ? '未定' : `${plan.quantity.toLocaleString()}人・食`],
+          {[['メモ', plan.target_details || '未設定'], ['人数・食数', plan.quantity === null ? '未定' : `${plan.quantity.toLocaleString()}人・食`],
             ['1食あたり', yen(plan.unit_price)], ['追加費用', yen(plan.additional_cost)], ['合計費用', yen(lunchCost(plan))],
             ['お店・注文先', plan.shop_name || '未定'], ['連絡先・住所', plan.shop_contact || '未設定'], ['メニュー', plan.menu || '未定'], ['備考', plan.notes || 'なし']].map(([label, value]) => <div key={label} className="flex flex-wrap gap-x-4 gap-y-1">
               <dt className="text-slate-500">{label}</dt><dd className="min-w-0 whitespace-pre-wrap break-words">{value}</dd>

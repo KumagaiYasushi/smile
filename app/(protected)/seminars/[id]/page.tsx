@@ -132,6 +132,7 @@ export default function SeminarDetailPage({ params }: Props) {
 
       {/* サブナビゲーション */}
       <div className="flex gap-2 flex-wrap">
+        <Link href={`/seminars/${id}/finance`} className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-bold text-sky-800">収支見積もり</Link>
         <Link href={`/seminars/${id}/lunch`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50">昼食の手配</Link>
         <Link href={`/seminars/${id}/staff-attendance`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50">講師・サポートの出欠予定</Link>
         <Link href={`/seminars/${id}/reschedule`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50">開催日・期限変更</Link>

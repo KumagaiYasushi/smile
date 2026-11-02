@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useId, isValidElement, cloneElement } from 'react';
+import { useState, useId, useRef, isValidElement, cloneElement } from 'react';
 import {flagFieldError,clearFieldError} from '@/components/FormValidationFeedback';
 import { useRouter } from 'next/navigation';
 import { Seminar, SeminarSubmission, EventType, EVENT_TYPE_LABELS, DeliveryMethod, DELIVERY_METHOD_LABELS } from '@/types/seminar';
@@ -34,6 +34,7 @@ type Props = {
 
 export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const router = useRouter();
+  const formRef=useRef<HTMLFormElement>(null);
   const registration=useEventRegistration(initial?.id);
   const meetings=useMeetingDraft(initial?.id);
   const [travel,setTravel]=useState(initial?.external_payment?.travel==null?'':String(initial.external_payment.travel));
@@ -84,6 +85,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
     const dateFields=[...form.querySelectorAll<HTMLInputElement>('[data-event-date]')];
     for(const field of dateFields)if(field.value&&dateFields.filter(p=>p.value===field.value).length>1)flagFieldError(field,'開催日が重複しています。別の日付を指定してください。');
     if(occurrence==='SINGLE'&&validDates.length>1)flagFieldError(form.querySelector('[data-occurrence]'),'単回では開催日を1日にしてください。複数日なら複数回を選択してください。');
+    for(const [date,time] of Object.entries(eventTimes))if(validDates.includes(date)&&time.end&&time.start&&time.end<time.start)flagFieldError(form.querySelector(`[aria-label="${date}の終了時刻"]`),'終了時刻は開始時刻以降にしてください。');
     const audienceInvalid=!keepLegacyAudience&&audienceRoles.length===0;
     if(audienceInvalid)flagFieldError(form.querySelector('[data-audience]'),'主な参加対象を1つ以上選択してください。');
     if(!form.checkValidity()||audienceInvalid) {
@@ -146,7 +148,12 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   return (
-    <form noValidate onSubmit={handleSubmit} className="space-y-8">
+    <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-4">
+      <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-sky-100 bg-white/95 p-3 shadow-sm">
+        <p className="text-sm text-slate-600">必要な項目を開いて入力してください。出欠・昼食・懇親会は登録後にも設定できます。</p>
+        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','外来講師','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title}>{title}</option>)}</select></label>
+        <button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=true;})} className="rounded-lg border px-3 py-2 text-sm">すべて開く</button><button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=false;})} className="rounded-lg border px-3 py-2 text-sm">すべて閉じる</button></div>
+      </div>
       {error && (
         <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
           {error}
@@ -239,12 +246,12 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </>}
       </Section>
 
-      <div className="space-y-3">
+      <Section title="イベント当日の出欠">
         {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}
         {registration.error&&<p role="alert" className="text-sm text-red-700">{registration.error}</p>}
         {!registration.loading&&<button type="button" disabled={saving} onClick={registration.reload} className="text-sm text-sky-800 underline">出欠・昼食を再取得</button>}
         {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
-      </div>
+      </Section>
 
       <Section title="打ち合わせ">
         {meetings.error&&<p role="alert" className="text-red-700">{meetings.error}</p>}
@@ -327,7 +334,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="懇親会">
-        <fieldset data-social aria-label="懇親会の入力"><SocialGatheringEditor value={social} onChange={setSocial} members={meetings.members} external={external}/></fieldset>
+        <fieldset data-social aria-label="懇親会の入力"><SocialGatheringEditor value={social} onChange={setSocial} members={meetings.members} external={external} dates={validDates}/></fieldset>
       </Section>
 
       <Section title="メモ">
@@ -344,7 +351,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
       {error&&<p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <p className="text-xs text-slate-500">保存すると、外来講師ありは依頼関連5件と参加者確認メール1件、なしは確認メール1件の基本タスクを設定します。期限・担当者は登録後に編集できます。</p>
-      <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
+      <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/95 p-3 shadow-sm">
         <button
           type="button"
           onClick={() => router.back()}
@@ -366,12 +373,10 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <h2 className="text-base font-bold text-slate-700 mb-4 pb-2 border-b border-slate-200">
-        {title}
-      </h2>
-      <div className="space-y-4">{children}</div>
-    </div>
+    <details data-form-section={title} open={title==='基本情報'} className="scroll-mt-36 rounded-xl border border-slate-200 bg-white p-4">
+      <summary className="cursor-pointer select-none text-slate-700"><h2 className="inline text-base font-bold">{title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
+      <div className="mt-4 space-y-4">{children}</div>
+    </details>
   );
 }
 

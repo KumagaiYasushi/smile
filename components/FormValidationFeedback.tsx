@@ -11,6 +11,7 @@ export function clearFieldError(field:HTMLElement) {
 }
 function showFieldError(field:HTMLElement,message:string) {
   clearFieldError(field);
+  for(let p=field.parentElement;p;p=p.parentElement)if(p instanceof HTMLDetailsElement)p.open=true;
   field.setAttribute('aria-invalid','true');
   const error=document.createElement('p');error.id=`field-validation-${++errorSerial}`;error.className='field-validation-error';error.textContent=message;
   field.dataset.validationError=error.id;

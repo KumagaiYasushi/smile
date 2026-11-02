@@ -29,3 +29,5 @@
 研究会カレンダーの表示と、WEBページ管理者向け開催要項PDFの保存は [カレンダー・開催要項PDF](docs/calendar-outline.md) を参照してください。
 
 入力エラーの赤表示は [入力エラーの表示](docs/form-validation.md)、懇親会の名簿出欠は [懇親会](docs/social-gathering.md) を参照してください。
+
+申込人数からの参加費収入、協賛費、お車代・謝礼・会場費・昼食等の収支は [イベントの収支見積もり](docs/event-finance.md) を参照してください。

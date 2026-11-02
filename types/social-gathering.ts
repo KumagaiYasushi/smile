@@ -1,12 +1,13 @@
 import {parseSocialAttendance} from './social-attendance.ts';
 import type {SocialAttendee} from './social-attendance.ts';
+import {requireDate} from './task-template.ts';
 import { TaskError } from './task.ts';
 
 export const SOCIAL_STATUS_LABELS = { UNDECIDED: '未定', HELD: '開催する', NOT_HELD: '開催しない' } as const;
 export type SocialStatus = keyof typeof SOCIAL_STATUS_LABELS;
 export const SOCIAL_TIMING_LABELS={BEFORE:'事前',ON_DAY:'開催日',AFTER:'終了後'} as const;
 export type SocialTiming=keyof typeof SOCIAL_TIMING_LABELS;
-export type SocialPlan={id:string;timing:SocialTiming;start_at:string|null;end_at:string|null;venue:string;fee:number|null;budget:number|null;participants:number|null;attendees?:SocialAttendee[]};
+export type SocialPlan={id:string;timing:SocialTiming;start_at:string|null;end_at:string|null;venue:string;fee:number|null;budget:number|null;participants:number|null;attendees?:SocialAttendee[];start_date?:string|null;end_date?:string|null};
 export type SocialGathering = {
   status: SocialStatus;
   start_at: string | null;
@@ -66,13 +67,15 @@ export function parseSocialGathering(value:unknown):SocialGathering {
   const plans:SocialPlan[]=gatherings.map(value=>{
     if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('懇親会の入力形式が不正です');
     const body=value as Record<string,unknown>;
-    if(Object.keys(body).some(key=>!['id','timing','start_at','end_at','venue','fee','budget','participants','attendees'].includes(key)))throw new TaskError('懇親会に変更できない項目が含まれています');
+    if(Object.keys(body).some(key=>!['id','timing','start_at','end_at','venue','fee','budget','participants','attendees','start_date','end_date'].includes(key)))throw new TaskError('懇親会に変更できない項目が含まれています');
     if(typeof body.id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(body.id)||ids.has(body.id))throw new TaskError('懇親会のIDが不正または重複しています');
     ids.add(body.id);
     if(typeof body.timing!=='string'||!Object.hasOwn(SOCIAL_TIMING_LABELS,body.timing))throw new TaskError('懇親会の開催区分が不正です');
     for(const key of ['budget','participants'])if(body[key]!==null&&(typeof body[key]!=='number'||!Number.isSafeInteger(body[key])||(body[key] as number)<0))throw new TaskError('懇親会の予算・参加人数は0以上の整数、または未定で入力してください');
+    for(const key of ['start_date','end_date'] as const)if(body[key]!==undefined&&body[key]!==null)requireDate(body[key]);
+    for(const [key,stamp] of [['start_date','start_at'],['end_date','end_at']] as const)if(body[key]!==undefined&&body[stamp]&&typeof body[stamp]==='string'&&body[stamp].slice(0,10)!==body[key])throw new TaskError('懇親会の日付と時刻が一致していません');
     const fields=parseSingleGathering({status:'HELD',start_at:body.start_at,end_at:body.end_at,venue:body.venue,fee:body.fee});
-    return {id:body.id,timing:body.timing as SocialTiming,start_at:fields.start_at,end_at:fields.end_at,venue:fields.venue,fee:fields.fee,budget:body.budget as number|null,participants:body.participants as number|null,...(body.attendees===undefined?{}:{attendees:parseSocialAttendance(body.attendees)})};
+    return {id:body.id,timing:body.timing as SocialTiming,start_at:fields.start_at,end_at:fields.end_at,venue:fields.venue,fee:fields.fee,budget:body.budget as number|null,participants:body.participants as number|null,...(body.attendees===undefined?{}:{attendees:parseSocialAttendance(body.attendees)}),...(body.start_date===undefined?{}:{start_date:body.start_date as string|null}),...(body.end_date===undefined?{}:{end_date:body.end_date as string|null})};
   });
   if(timings.some(t=>!plans.some(p=>p.timing===t))||(base.status==='HELD'&&!timings.length))throw new TaskError('開催する懇親会の区分と内容を登録してください');
   return withSocialPlans(base,timings as SocialTiming[],plans);
@@ -84,6 +87,7 @@ export function mergeSocialGathering(current: SocialGathering, patch: unknown): 
   if(current.gatherings&&!('gatherings' in data)){
     const first=current.gatherings.find(p=>Array.isArray(merged.timings)&&merged.timings.includes(p.timing));
     if(first){const changes=Object.fromEntries(Object.entries(data).filter(([key])=>['start_at','end_at','venue','fee'].includes(key)));
+      for(const [date,stamp] of [['start_date','start_at'],['end_date','end_at']] as const)if(first[date]!==undefined&&Object.hasOwn(changes,stamp))changes[date]=typeof changes[stamp]==='string'?(changes[stamp] as string).slice(0,10):null;
       merged={...merged,gatherings:current.gatherings.map(p=>p.id===first.id?{...p,...changes}:p)};
     }
   }
@@ -96,3 +100,7 @@ export function formatSocialDateTime(value: string | null): string {
   const [date, time] = value.split('T');
   return `${date.replace('-', '年').replace('-', '月')}日 ${time}（日本時間）`;
 }
+
+export function socialTotal(plan:Pick<SocialPlan,'participants'|'fee'>):string|null {return plan.participants===null||plan.fee===null?null:(BigInt(plan.participants)*BigInt(plan.fee)).toString();}
+export function formatSocialPlanDateTime(plan:SocialPlan,end=false):string {const stamp=end?plan.end_at:plan.start_at,date=end?plan.end_date:plan.start_date;return stamp?formatSocialDateTime(stamp):date?`${date.replace('-','年').replace('-','月')}日（時刻未定）`:'未定';}
+export function newSocialPlan(timing:SocialTiming,id:string,dates:string[],index=0):SocialPlan {const sorted=[...new Set(dates)].sort(),date=timing==='ON_DAY'?sorted[Math.min(index,sorted.length-1)]??null:null;return {...emptySocialPlan(timing,id),start_date:date,end_date:date};}
