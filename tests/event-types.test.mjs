@@ -100,6 +100,7 @@ test('legacy database migrates without losing IDs, dates, timestamps, checklist 
     assert.equal(first.getSeminarById(42).occurrence_type, null);
     assert.deepEqual(first.getSeminarById(42).event_times, {});
     assert.equal(first.getSeminarById(42).lecturer_role, null);
+    assert.deepEqual(first.getSeminarById(42).external_lecturer, {status:'UNDECIDED',id:null,name:'',facility:''});
     assert.deepEqual(first.getSeminarById(42).social_gathering, { status: 'UNDECIDED', start_at: null, end_at: null, venue: '', fee: null });
     assert.equal(first.getSeminarById(42).photo_received, true);
     assert.equal(first.getSeminarById(42).created_at, '2026-01-01');
@@ -118,6 +119,7 @@ test('legacy database migrates without losing IDs, dates, timestamps, checklist 
     assert.equal(second.getSeminarById(42).event_type, 'SEMINAR');
     assert.equal(second.getSeminarById(42).delivery_method, null);
     assert.equal(second.getSeminarById(42).venue_id, null);
+    assert.deepEqual(second.getSeminarById(42).external_lecturer, {status:'UNDECIDED',id:null,name:'',facility:''});
     assert.equal(second.getDb().prepare('PRAGMA table_info(seminars)').all().filter(c => c.name === 'venue_id').length, 1);
     assert.equal(second.getSeminarById(42).social_gathering.status, 'UNDECIDED');
     assert.equal(second.getDb().prepare('PRAGMA table_info(seminars)').all().filter(c => c.name === 'social_gathering').length, 1);

@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       repeat_fees: body.repeat_fees === undefined ? {dental_hygienist:null,dentist:null,other:null} : body.repeat_fees,
       event_times: body.event_times === undefined ? {} : body.event_times,
       lecturer_role: body.lecturer_role ?? null,
+      external_lecturer:body.external_lecturer,
       social_gathering: gathering,
       name: body.name ?? '',
       dates: body.dates ?? [],

@@ -22,6 +22,7 @@ export default function AuthControls({ role, verification = false }: { role: 'me
     <Link href="/task-templates" className="text-sky-800 underline">タスクテンプレート</Link>
     <Link href="/venues" className="text-sky-800 underline">会場台帳</Link>
     <Link href="/society-members" className="text-sky-800 underline">講師・サポート名簿</Link>
+    <Link href="/external-lecturers" className="text-sky-800 underline">外来講師リスト</Link>
     {role === 'admin' && <Link href="/admin/users" className="text-sky-800 underline">アカウント一覧</Link>}
     <button onClick={logout} disabled={busy} className="text-sky-800 underline">ログアウト</button>
     {error && <p role="alert" className="text-red-700">{error}</p>}

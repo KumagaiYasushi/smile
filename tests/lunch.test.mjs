@@ -2,11 +2,35 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import Database from 'better-sqlite3';
 import { createLunchStore } from '../lib/lunch.ts';
-import { emptyLunch, parseLunch, lunchCost, summarizeLunch } from '../types/lunch.ts';
+import { emptyLunch, parseLunch, lunchCost, summarizeLunch,defaultLunch,withLunchQuantities } from '../types/lunch.ts';
+import {countLunchAttendance} from '../types/lunch-defaults.ts';
 
 const dates = ['2027-06-01', '2027-06-08'];
 const fields = { ...emptyLunch(), date: dates[0], target: 'LECTURER', quantity: 3, unit_price: 1200, additional_cost: 500, shop_name: '架空のお店', status: 'PLANNED' };
 const input = (extra = {}) => ({ ...fields, schedule: dates, ...extra });
+test('multi-target orders derive one total and retain separate counts, zero and unknown values',()=>{
+  const counts={LECTURER:2,SUPPORT:1,PARTICIPANT:12,EXTERNAL_LECTURER:1,OTHER:0};
+  const plan=parseLunch({...defaultLunch(counts,dates[0]),unit_price:900,additional_cost:500});
+  assert.equal(plan.quantity,16);assert.equal(lunchCost(plan),14900);
+  assert.deepEqual(plan.quantities,{EXTERNAL_LECTURER:1,LECTURER:2,SUPPORT:1,PARTICIPANT:12});
+  assert.equal(parseLunch(withLunchQuantities(plan,plan.targets,{...counts,PARTICIPANT:null})).quantity,null);
+  assert.equal(parseLunch(withLunchQuantities(plan,['SUPPORT'],{SUPPORT:0})).quantity,0);
+  for(const bad of [{targets:[]},{targets:['LECTURER','LECTURER']},{quantities:{LECTURER:2}},{quantity:15},{quantities:{...plan.quantities,OTHER:0}},{quantities:{...plan.quantities,PARTICIPANT:-1}},{quantities:{...plan.quantities,PARTICIPANT:Number.MAX_SAFE_INTEGER}}])assert.throws(()=>parseLunch({...plan,...bad}),{status:400});
+  const missing={...plan};delete missing.quantities;assert.throws(()=>parseLunch(missing),{status:400});
+  const {db,store}=fixture();try{
+    const saved=store.create(42,{...plan,schedule:dates},1);
+    assert.deepEqual(saved.quantities,plan.quantities);assert.deepEqual(store.history(42)[0].after.targets,plan.targets);
+    const edit=withLunchQuantities(plan,plan.targets,{...plan.quantities,PARTICIPANT:13});
+    const updated=store.update(42,saved.id,{...edit,schedule:dates,version:saved.version},1);
+    assert.equal(updated.quantity,17);assert.equal(store.list(42).plans.length,1);
+  }finally{db.close();}
+});
+test('lunch defaults count only attending people on the selected date and separate participants',()=>{
+  const people=[['SOCIETY_LECTURER','ATTENDING','ABSENT'],['LECTURER','ATTENDING','UNANSWERED'],['SOCIETY_SUPPORT','ATTENDING','ATTENDING'],['SUPPORT','ABSENT','ATTENDING'],['SOCIETY_SUPPORT','TENTATIVE','UNANSWERED'],['EXTERNAL_LECTURER','ATTENDING','ABSENT']].map(([role,a,b])=>({role,responses:{[dates[0]]:a,[dates[1]]:b}}));
+  assert.deepEqual(countLunchAttendance(people,dates[0],12),{LECTURER:2,SUPPORT:1,EXTERNAL_LECTURER:1,PARTICIPANT:12,OTHER:0});
+  assert.deepEqual(countLunchAttendance(people,dates[1],12),{LECTURER:0,SUPPORT:2,EXTERNAL_LECTURER:0,PARTICIPANT:12,OTHER:0});
+  assert.equal(defaultLunch(countLunchAttendance([],null,0),null).quantity,0);
+});
 function fixture() {
   const db = new Database(':memory:'); db.pragma('foreign_keys=ON');
   db.exec(`CREATE TABLE seminars(id INTEGER PRIMARY KEY,name TEXT,dates TEXT);

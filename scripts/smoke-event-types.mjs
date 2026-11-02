@@ -23,7 +23,7 @@ try {
   const form = await fetch(`${base}/seminars/new`, { headers: { Cookie: cookie } });
   assert.equal(form.status, 200);
   const formHtml = await form.text();
-  for (const label of ['ベーシックコース', '講演会', 'セミナー', '現地開催', 'オンライン', '現地開催＋オンライン']) {
+  for (const label of ['ベーシックコース', '講演会', 'セミナー', 'セミナー名', '開催回数']) {
     assert.ok(formHtml.includes(label));
   }
 

@@ -4,6 +4,9 @@ import { useCallback,useEffect,useRef,useState } from 'react';
 import { apiJson } from '@/lib/client-api';
 import { parseLunch } from '@/types/lunch';
 import type { LunchData,LunchInput } from '@/types/lunch';
+import {countLunchAttendance} from '@/types/lunch-defaults';
+import type {ExternalSelection} from '@/types/external-lecturer';
+import type {StaffPerson} from '@/types/staff-attendance';
 import type { SocietyMember } from '@/types/society-member';
 import type { StaffRoster,StaffRosterRow,RosterResponse } from '@/types/staff-roster';
 import type { AttendanceDraft,EventRegistration,LunchChange,LunchDraft } from '@/types/event-registration';
@@ -15,19 +18,20 @@ export function useEventRegistration(eventId?:number) {
   const [attendance,setAttendance]=useState<Record<number,AttendanceDraft>>({});
   const [loading,setLoading]=useState(true),[error,setError]=useState('');
   const serial=useRef(0);
-  const load=useCallback(async(signal?:AbortSignal):Promise<{roster:StaffRoster;lunch:LunchDraft[]}>=>{
+  const [otherStaff,setOtherStaff]=useState<StaffPerson[]>([]),[participantCount,setParticipantCount]=useState(0);
+  const load=useCallback(async(signal?:AbortSignal):Promise<{roster:StaffRoster;lunch:LunchDraft[];people:StaffPerson[];participantCount:number}>=>{
     if(eventId) {
-      const [staff,food]:[{roster:StaffRoster},LunchData]=await Promise.all([apiJson(`/api/seminars/${eventId}/staff-attendance`,{signal}),apiJson(`/api/seminars/${eventId}/lunch`,{signal})]);
-      return {roster:staff.roster,lunch:food.plans.map(plan=>{
-        const {id,version,date,target,target_details,quantity,unit_price,additional_cost,shop_name,shop_contact,menu,notes,status}=plan;
-        return {key:`saved-${id}`,id,version,dirty:false,data:{date,target,target_details,quantity,unit_price,additional_cost,shop_name,shop_contact,menu,notes,status}};
+      const [staff,food,participants]:[{roster:StaffRoster;people:StaffPerson[]},LunchData,unknown[]]=await Promise.all([apiJson(`/api/seminars/${eventId}/staff-attendance`,{signal}),apiJson(`/api/seminars/${eventId}/lunch`,{signal}),apiJson(`/api/seminars/${eventId}/participants`,{signal})]);
+      return {roster:staff.roster,people:staff.people,participantCount:participants.length,lunch:food.plans.map(plan=>{
+        const {id,version,date,target,targets,quantities,target_details,quantity,unit_price,additional_cost,shop_name,shop_contact,menu,notes,status}=plan;
+        return {key:`saved-${id}`,id,version,dirty:false,data:{date,target,...(targets?{targets}:{}),...(quantities?{quantities}:{}),target_details,quantity,unit_price,additional_cost,shop_name,shop_contact,menu,notes,status}};
       })};
     }
     const data:{members:SocietyMember[]}=await apiJson('/api/society-members',{signal});
-    return {roster:{dates:[],rows:data.members.filter(p=>p.active).map(p=>({member_id:p.id,member_version:p.version,directory_name:p.name,active:p.active,name:p.name,role:p.role,person_id:null,version:0,responses:{}}))},lunch:[]};
+    return {roster:{dates:[],rows:data.members.filter(p=>p.active).map(p=>({member_id:p.id,member_version:p.version,directory_name:p.name,active:p.active,name:p.name,role:p.role,person_id:null,version:0,responses:{}}))},lunch:[],people:[],participantCount:0};
   },[eventId]);
-  const apply=useCallback((data:{roster:StaffRoster;lunch:LunchDraft[]})=>{
-    setRoster(data.roster);setLunch(data.lunch);setAttendance({});setRemoved([]);
+  const apply=useCallback((data:{roster:StaffRoster;lunch:LunchDraft[];people:StaffPerson[];participantCount:number})=>{
+    setRoster(data.roster);setOtherStaff(data.people);setParticipantCount(data.participantCount);setLunch(data.lunch);setAttendance({});setRemoved([]);
   },[]);
   useEffect(()=>{
     const controller=new AbortController();
@@ -59,5 +63,12 @@ export function useEventRegistration(eventId?:number) {
     setLoading(true);setError('');
     try{apply(await load());}catch(error){setError(error instanceof Error?error.message:'出欠・昼食を取得できませんでした');}finally{setLoading(false);}
   }
-  return {roster,lunch,loading,error,dirty,setResponse,addLunch,updateLunch,removeLunch,payload,reload};
+  function getLunchCounts(date:string|null,external:ExternalSelection) {
+    const linked=new Set(roster?.rows.map(row=>row.person_id).filter(id=>id!==null));
+    const counts=countLunchAttendance([...(roster?.rows??[]),...otherStaff.filter(p=>!linked.has(p.id))],date,participantCount);
+    const registered=otherStaff.find(p=>p.role==='EXTERNAL_LECTURER'&&p.name===external.name);
+    counts.EXTERNAL_LECTURER=external.status==='YES'&&external.name?(registered?.responses[date??'']!==undefined?(registered.responses[date??'']==='ATTENDING'?1:0):1):0;
+    return counts;
+  }
+  return {roster,lunch,loading,error,dirty,getLunchCounts,setResponse,addLunch,updateLunch,removeLunch,payload,reload};
 }

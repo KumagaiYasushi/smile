@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { currentUser, requireMember } from '@/lib/auth-server';
 import { lunchStore, lunchResponse } from '@/lib/lunch-server';
+import {getDb} from '@/lib/db';
+import {getLunchDefaults} from '@/lib/lunch-defaults';
 import { parseId, TaskError } from '@/types/task';
 
 type Params = { params: Promise<{ id: string }> };
@@ -8,7 +10,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const denied = await requireMember(request); if (denied) return denied;
   return lunchResponse(async () => {
     const id = parseId((await params).id), store = lunchStore();
-    return { ...store.list(id), history: store.history(id) };
+    return { ...store.list(id), history: store.history(id), defaults:getLunchDefaults(getDb(),id) };
   });
 }
 export async function POST(request: NextRequest, { params }: Params) {

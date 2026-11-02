@@ -54,7 +54,7 @@ export function createLunchStore(db: Database.Database) {
     const snapshot = (value: LunchPlan | null): string | null => {
       if (!value) return null;
       const { date, target, quantity, unit_price, additional_cost, status } = value;
-      const safe: LunchSnapshot = { date, target, quantity, unit_price, additional_cost, status };
+      const safe: LunchSnapshot = { date, target, quantity, unit_price, additional_cost, status,...(value.targets?{targets:value.targets}:{}),...(value.quantities?{quantities:value.quantities}:{}) };
       return JSON.stringify(safe);
     };
     db.prepare(`INSERT INTO event_lunch_history(seminar_id,plan_id,actor_id,action,before_json,after_json)

@@ -13,6 +13,9 @@ import type { SessionMethods } from '@/types/event-options';
 import StaffRosterBoard from '@/components/StaffRosterBoard';
 import RegistrationLunchFields from '@/components/RegistrationLunchFields';
 import {useEventRegistration} from '@/components/useEventRegistration';
+import ExternalLecturerPicker from '@/components/ExternalLecturerPicker';
+import type {ExternalSelection} from '@/types/external-lecturer';
+import {emptyExternal} from '@/types/external-lecturer';
 import EventTimesEditor from '@/components/EventTimesEditor';
 import { OCCURRENCE_LABELS, validateOccurrences, parseEventTimes } from '@/types/event-schedule';
 import type { OccurrenceType, EventTimes } from '@/types/event-schedule';
@@ -31,7 +34,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
   const [name, setName] = useState(initial?.name ?? '');
   const [eventType, setEventType] = useState<EventType>(initial?.event_type ?? 'SEMINAR');
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod | ''>(initial?.delivery_method ?? '');
+  const deliveryMethod=initial?.delivery_method??undefined;
+  const [external,setExternal]=useState<ExternalSelection>(()=>initial?.external_lecturer?.status==='YES'?initial.external_lecturer:(!initial?.external_lecturer||initial.external_lecturer.status==='UNDECIDED')&&initial?.lecturer_role==='EXTERNAL_LECTURER'&&initial.lecturer_name?{status:'YES',id:null,name:initial.lecturer_name,facility:''}:{...(initial?.external_lecturer??emptyExternal()),status:initial?.external_lecturer?.status==='UNDECIDED'?'NO':initial?.external_lecturer?.status??'NO'});
   const [dates, setDates] = useState<string[]>(initial?.dates ?? ['']);
   const [occurrence, setOccurrence] = useState<OccurrenceType | ''>(initial?.occurrence_type ?? '');
   const [eventTimes, setEventTimes] = useState<EventTimes>(initial?.event_times ?? {});
@@ -41,6 +45,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [generateTasks, setGenerateTasks] = useState(true);
   const [taskBaseDate, setTaskBaseDate] = useState('');
   const validDates = [...new Set(dates.filter(Boolean))];
+  const allOnline = validDates.length ? validDates.every(date=>sessionMethods[date]==='ONLINE') : deliveryMethod==='ONLINE';
   const baseDate = validDates.includes(taskBaseDate) ? taskBaseDate : validDates.length === 1 ? validDates[0] : '';
   const [content, setContent] = useState(initial?.content ?? '');
   const [lecturerName, setLecturerName] = useState(initial?.lecturer_name ?? '');
@@ -88,32 +93,29 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       setError('セミナー名は必須です');
       return;
     }
-    if (!deliveryMethod && !(occurrence==='MULTIPLE'&&validDates.length>0)) {
-      setError('開催方法を選択してください');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
       validateOccurrences(occurrence, validDates);
-      const methods=parseSessionMethods(occurrence==='MULTIPLE'?Object.fromEntries(validDates.map(date=>[date,sessionMethods[date]])):{},validDates);
+      const methods=parseSessionMethods(Object.fromEntries(validDates.map(date=>[date,sessionMethods[date]])),validDates);
       const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
       await onSubmit({
         ...(!initial?.id ? { generate_tasks: generateTasks && validDates.length>0, ...(generateTasks && baseDate ? { task_base_date: baseDate } : {}) } : {}),
         registration: registration.payload(validDates),
         event_type: eventType,
-        delivery_method: deliveryMethod || methods[validDates[0]],
+        delivery_method: methods[validDates[0]]??deliveryMethod,
+        external_lecturer: external,
         occurrence_type: occurrence as OccurrenceType,
         session_delivery_methods: methods,
         repeat_fees: repeat,
         event_times: times,
-        lecturer_role: lecturerRole ? lecturerRole as 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' : null,
+        lecturer_role: lecturerRole==='EXTERNAL_LECTURER'?null:lecturerRole ? lecturerRole as 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' : null,
         social_gathering: parseSocialGathering({ ...social, fee: socialFee === '' ? null : Number(socialFee) }),
         name: name.trim(),
         dates: dates.filter((d) => d.trim()),
         content,
-        lecturer_name: lecturerName,
+        lecturer_name: lecturerRole==='EXTERNAL_LECTURER'?'':lecturerName,
         assistant_members: assistants.filter((a) => a.trim()),
         fee_dental_hygienist: Number(feeDH) || 0,
         fee_dentist: Number(feeDr) || 0,
@@ -145,6 +147,32 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       )}
 
       <Section title="基本情報">
+        <div>
+          <label htmlFor="event-type" className="block text-sm font-medium text-slate-700 mb-1.5">イベント種別</label>
+          <select id="event-type" value={eventType} onChange={(e) => setEventType(e.target.value as EventType)} className={inputClass}>
+            {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <Field label="セミナー名" required>
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="例：歯周基本治療セミナー 第1回"
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="開催回数" required>
+          <select required value={occurrence} onChange={e => setOccurrence(e.target.value as OccurrenceType | '')} className={inputClass}>
+            <option value="" disabled>選択してください</option>
+            {Object.entries(OCCURRENCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </Field>
+        <p className="text-xs text-slate-500">単回は1日、複数回は開催日を追加できます。日程未定でも開催回数は選択してください。</p>
         {!initial?.id && <div className="rounded-xl bg-sky-50 p-4 space-y-3 text-sm">
           <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={generateTasks} onChange={(e) => setGenerateTasks(e.target.checked)} />種別のテンプレートからタスクを自動生成する</label>
           <p>有効なテンプレートがある場合、開催日を基準に期限を計算します。担当者は作成後に割り当てられます。</p>
@@ -157,41 +185,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
           </label>}
           {generateTasks && validDates.length === 0 && <p>日程未定でも登録できます。タスクは日程確定後にプレビューして追加してください。</p>}
         </div>}
-        <div>
-          <label htmlFor="event-type" className="block text-sm font-medium text-slate-700 mb-1.5">イベント種別</label>
-          <select id="event-type" value={eventType} onChange={(e) => setEventType(e.target.value as EventType)} className={inputClass}>
-            {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
-        <Field label="開催方法" required={occurrence!=='MULTIPLE'||!validDates.length}>
-          <select required={occurrence!=='MULTIPLE'||!validDates.length} value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value as DeliveryMethod | '')} className={inputClass}>
-            <option value="" disabled>選択してください</option>
-            {Object.entries(DELIVERY_METHOD_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </Field>
-        {occurrence==='MULTIPLE'&&<p className="text-xs text-slate-500">上の開催方法は日程未定時の共通設定です。日程が決まっている回は、下の「各回の開催方法」を使います。</p>}
-        <Field label="開催回数" required>
-          <select required value={occurrence} onChange={e => setOccurrence(e.target.value as OccurrenceType | '')} className={inputClass}>
-            <option value="" disabled>選択してください</option>
-            {Object.entries(OCCURRENCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </Field>
-        <p className="text-xs text-slate-500">単回は1日、複数回は開催日を追加できます。日程未定でも開催回数は選択してください。</p>
-        <Field label="セミナー名" required>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="例：歯周基本治療セミナー 第1回"
-            className={inputClass}
-          />
-        </Field>
-
         <Field label="日程">
           {initial?.id ? <div className="space-y-2 text-sm">
             <p>{validDates.join('、') || '日程未定'}</p>
@@ -226,8 +219,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             </button>}
           </div>}
         </Field>
-        {occurrence==='MULTIPLE'&&<fieldset className="space-y-3"><legend className="mb-2 font-medium">各回の開催方法</legend>
-          <p className="text-xs text-slate-500">開催日ごとに選択してください。日程未定の間は上の開催方法を保存します。</p>
+        {validDates.length>0&&<fieldset className="space-y-3"><legend className="mb-2 font-medium">{occurrence==='MULTIPLE'?'各回の開催方法':'開催日の開催方法'}</legend>
+          <p className="text-xs text-slate-500">開催日ごとに選択してください。日程未定の場合は、開催方法も後から設定できます。</p>
           {validDates.map(date=><label key={date} className="block text-sm">{date}の開催方法<select aria-label={`${date}の開催方法`} required value={sessionMethods[date]??''} onChange={e=>setSessionMethods({...sessionMethods,[date]:e.target.value as DeliveryMethod})} className={inputClass}><option value="">選択してください</option>{Object.entries(DELIVERY_METHOD_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>)}
         </fieldset>}
         <EventTimesEditor dates={validDates} value={eventTimes} onChange={setEventTimes} />
@@ -245,13 +238,9 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
       <Section title="講師・スタッフ">
         <p className="text-sm text-slate-600">保存後の「講師・サポートの出欠予定」で、外来講師・研究会講師・研究会サポートメンバーを複数名登録できます。</p>
-        <Field label="講師区分">
-          <select value={lecturerRole} onChange={e => {setLecturerRole(e.target.value);setLecturerName('');}} className={inputClass}>
-            <option value="">区分を選択してください</option>
-            <option value="EXTERNAL_LECTURER">外来講師</option><option value="SOCIETY_LECTURER">研究会講師</option>
-          </select>
-        </Field>
-        {lecturerRole==='SOCIETY_LECTURER'?<SocietyMemberPicker role="SOCIETY_LECTURER" label="講師名" value={lecturerName} onChange={setLecturerName}/>:<Field label="講師名"><input type="text" value={lecturerName} onChange={e=>setLecturerName(e.target.value)} placeholder="外来講師の氏名" className={inputClass}/></Field>}
+        <Field label="外来講師"><select value={external.status==='YES'?'YES':'NO'} onChange={e=>setExternal({...external,status:e.target.value as 'YES'|'NO'})} className={inputClass}><option value="NO">なし</option><option value="YES">あり</option></select></Field>
+        {external.status==='YES'&&<ExternalLecturerPicker value={external} onChange={setExternal}/>}
+        <SocietyMemberPicker role="SOCIETY_LECTURER" label="研究会講師（主担当・任意）" value={lecturerRole==='SOCIETY_LECTURER'?lecturerName:''} onChange={name=>{setLecturerRole('SOCIETY_LECTURER');setLecturerName(name);}}/>
 
         <Field label="研究会サポートメンバー">
           <div className="space-y-2">
@@ -338,7 +327,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="会場">
-        {deliveryMethod === 'ONLINE' && <p className="text-sm text-slate-500">配信拠点などの内部記録に使用できます。オンライン開催の案内文には会場を掲載しません。</p>}
+        {allOnline && <p className="text-sm text-slate-500">配信拠点などの内部記録に使用できます。オンライン開催の案内文には会場を掲載しません。</p>}
         <VenuePicker value={venueId} onSelect={(id, location) => { setVenueId(id); if (location !== undefined) setVenue(location); }} onReferenceFee={fee => setVenueFee(String(fee))} />
         <Field label="会場名・住所">
           <input
@@ -363,7 +352,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="昼食の手配">
-        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch}/>
+        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch} getCounts={date=>registration.getLunchCounts(date,external)}/>
         {initial?.id && <Link href={`/seminars/${initial.id}/lunch`} className="inline-block text-sm text-sky-800 underline">昼食の手配を登録・確認する</Link>}
       </Section>
 

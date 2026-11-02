@@ -52,8 +52,9 @@ try {
     const external = page.getByRole('article').filter({ has: page.getByRole('heading', { name: '外来講師の昼食', exact: true }) });
     await external.getByRole('button', { name: '編集', exact: true }).click();
     const editor = page.getByRole('form', { name: '昼食の手配編集', exact: true });
-    await editor.getByLabel('人数・食数（人・食）', { exact: true }).fill('2');
+    await editor.getByLabel('外来講師のオーダー個数', { exact: true }).fill('2');
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
+    await expect(editor).toBeHidden({timeout:30000});
     await expect(external).toContainText('¥2,400');
     await page.getByRole('link', { name: '検証ページ', exact: true }).click();
   }

@@ -5,7 +5,7 @@ import { STAFF_ROLE_LABELS, STAFF_SELECTABLE_ROLE_LABELS, STAFF_RESPONSE_LABELS,
 import type { StaffPerson, StaffInput, StaffRole, StaffResponse, StaffHistory, StaffAttendance } from '../types/staff-attendance.ts';
 
 type PersonRow = Omit<StaffPerson, 'responses'> & { responses_json: string };
-type EventRow = { name: string; dates: string; lecturer_name: string; assistant_members: string; lecturer_role?: StaffRole | null };
+type EventRow = { name: string; dates: string; lecturer_name: string; assistant_members: string; lecturer_role?: StaffRole | null; external_lecturer?: string };
 const toPerson = ({ responses_json, ...row }: PersonRow): StaffPerson => ({ ...row, responses: JSON.parse(responses_json) });
 
 export function createStaffAttendanceStore(db: Database.Database) {
@@ -156,8 +156,10 @@ export function createStaffAttendanceStore(db: Database.Database) {
         const fields = object(body), row = event(seminarId);
         if (Object.keys(fields).some(key => key !== 'schedule')) throw new TaskError('入力形式が不正です');
         schedule(fields.schedule, row.dates);
+        const external = row.external_lecturer ? JSON.parse(row.external_lecturer) as {status:string;name:string} : null;
         const candidates = [
-          { name: row.lecturer_name.trim(), role: row.lecturer_role ?? 'LECTURER' as StaffRole },
+          ...(external?.status==='YES' ? [{name:external.name,role:'EXTERNAL_LECTURER' as const}] : []),
+          { name: row.lecturer_role==='EXTERNAL_LECTURER' && external?.status==='NO' ? '' : row.lecturer_name.trim(), role: row.lecturer_role ?? 'LECTURER' as StaffRole },
           ...(JSON.parse(row.assistant_members) as string[]).map(name => ({ name: name.trim(), role: 'SOCIETY_SUPPORT' as const })),
         ].filter(item => item.name);
         let added = 0;

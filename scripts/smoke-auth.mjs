@@ -20,6 +20,7 @@ import { smokeVenues } from './smoke-venues.mjs';
 import { smokeSettingsReceipts } from './smoke-settings-receipts.mjs';
 import { smokeSessionDirectory } from './smoke-session-directory.mjs';
 import { smokeEventRegistration } from './smoke-event-registration.mjs';
+import { smokeExternalLunch } from './smoke-external-lunch.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
 const directory = mkdtempSync(join(tmpdir(), 'smile-auth-smoke-'));
@@ -70,7 +71,7 @@ try {
   assert.ok(ready, 'isolated server readiness');
   const guest = client();
   await guest.request('/login');
-  for (const path of ['/', '/dashboard', '/seminars/new', '/seminars/1', '/seminars/1/edit', '/seminars/1/participants', '/seminars/1/email-templates', '/seminars/1/participants/1/receipt', '/seminars/1/tasks', '/seminars/1/reschedule', '/seminars/1/staff-attendance', '/seminars/1/lunch', '/task-templates', '/venues', '/society-members', '/admin/users']) {
+  for (const path of ['/', '/dashboard', '/seminars/new', '/seminars/1', '/seminars/1/edit', '/seminars/1/participants', '/seminars/1/email-templates', '/seminars/1/participants/1/receipt', '/seminars/1/tasks', '/seminars/1/reschedule', '/seminars/1/staff-attendance', '/seminars/1/lunch', '/task-templates', '/venues', '/society-members', '/external-lecturers', '/admin/users']) {
     const response = await guest.request(path, 'GET', undefined, 307);
     assert.ok(response.headers.get('location').endsWith('/login'));
   }
@@ -91,6 +92,7 @@ try {
     ['/api/seminars/1/lunch', ['GET', 'POST']], ['/api/seminars/1/lunch/1', ['PATCH', 'DELETE']],
     ['/api/seminars/1/participants/1/receipt', ['GET', 'POST']],
     ['/api/society-members', ['GET', 'POST']], ['/api/society-members/1', ['PATCH']],
+    ['/api/external-lecturers', ['GET', 'POST']], ['/api/external-lecturers/1', ['PATCH']],
     ['/api/venues', ['GET', 'POST']], ['/api/venues/1', ['GET', 'PATCH']],
   ]) {
     for (const method of methods) await guest.request(path, method, method === 'GET' ? undefined : {}, 401);
@@ -125,6 +127,7 @@ try {
   assert.equal(db.prepare('SELECT count(*) n FROM task_generation_batches').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM event_schedule_state').get().n, 0);
   await smokeEventRegistration(member);
+  await smokeExternalLunch(member);
   const seminar = await (await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空認証検証' }, 201)).json();
   const participant = await (await member.request(`/api/seminars/${seminar.id}/participants`, 'POST', { name: '架空参加者' }, 201)).json();
   const correct = `/api/seminars/${seminar.id}/participants/${participant.id}`;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import Database from 'better-sqlite3';
 import { createStaffAttendanceStore } from '../lib/staff-attendance.ts';
+import {getLunchDefaults} from '../lib/lunch-defaults.ts';
 
 const dates = ['2027-06-01', '2027-06-08'];
 const responses = { '2027-06-01': 'ATTENDING', '2027-06-08': 'ABSENT' };
@@ -18,6 +19,22 @@ function fixture() {
   db.prepare('INSERT INTO seminars VALUES(?,?,?,?,?)').run(43, '別イベント', '[]', '', '[]');
   return { db, store: createStaffAttendanceStore(db) };
 }
+test('selected external lecturer can be imported without duplicating the research lead; lunch defaults follow dated attendance and participant registry',()=>{
+  const {db,store}=fixture();try{
+    db.exec('ALTER TABLE seminars ADD COLUMN external_lecturer TEXT;ALTER TABLE seminars ADD COLUMN lecturer_role TEXT');
+    db.prepare('UPDATE seminars SET lecturer_role=?,external_lecturer=? WHERE id=42').run('SOCIETY_LECTURER',JSON.stringify({status:'YES',id:1,name:'架空の外来講師',facility:'架空病院'}));
+    assert.equal(getLunchDefaults(db,42)[dates[0]].EXTERNAL_LECTURER,1);
+    assert.equal(store.importNames(42,{schedule:dates},1).added,4);
+    assert.equal(store.importNames(42,{schedule:dates},1).added,0);
+    const external=store.list(42).people.find(p=>p.role==='EXTERNAL_LECTURER');
+    store.update(42,external.id,{name:external.name,role:external.role,schedule:dates,responses,version:external.version},1);
+    const values=getLunchDefaults(db,42);
+    assert.equal(values[dates[0]].EXTERNAL_LECTURER,1);assert.equal(values[dates[1]].EXTERNAL_LECTURER,0);
+    assert.equal(values[dates[0]].PARTICIPANT,1);assert.equal(values[dates[0]].LECTURER,0);
+    db.prepare('UPDATE seminars SET external_lecturer=? WHERE id=42').run(JSON.stringify({status:'NO',id:1,name:external.name,facility:'架空病院'}));
+    assert.equal(getLunchDefaults(db,42)[dates[0]].EXTERNAL_LECTURER,0);
+  }finally{db.close();}
+});
 
 test('staff plans store separate dates and roles, can be revised, and never set actual participant attendance', () => {
   const { db, store } = fixture();

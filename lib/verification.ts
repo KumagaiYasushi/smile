@@ -26,7 +26,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
     const ids: number[] = [];
     for (const example of examples) {
       templates.createTemplate({ event_type: example.type, title: '【検証】開催前の準備確認', relative_days: -7, important: true }, actorId);
-      const event = templates.createEvent(() => createSeminar({ event_type: example.type, delivery_method: example.method, occurrence_type: example.dates.length > 1 ? 'MULTIPLE' : 'SINGLE', session_delivery_methods: {}, repeat_fees: {dental_hygienist:null,dentist:null,other:null}, event_times: {}, lecturer_role: 'SOCIETY_LECTURER', name: example.name,
+      const event = templates.createEvent(() => createSeminar({ event_type: example.type, delivery_method: example.method, occurrence_type: example.dates.length > 1 ? 'MULTIPLE' : 'SINGLE', session_delivery_methods: {}, repeat_fees: {dental_hygienist:null,dentist:null,other:null}, event_times: {}, external_lecturer:{status:'NO',id:null,name:'',facility:''}, lecturer_role: 'SOCIETY_LECTURER', name: example.name,
         dates: example.dates, content: '架空データです。編集・保存・日程変更などを試してください。', lecturer_name: '【架空】講師A', assistant_members: ['【架空】サポートA'],
         fee_dental_hygienist: 5000, fee_dentist: 8000, fee_other: 5000, target_participants: '検証用の参加者',
         venue_id: venue.id, venue: '【架空】検証用会議室 / テストルームA / 架空県テスト市 サンプルビル', venue_fee: 15000,
