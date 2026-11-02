@@ -2,19 +2,16 @@
 
 import { useRouter } from 'next/navigation';
 import SeminarForm from '@/components/SeminarForm';
+import { apiJson } from '@/lib/client-api';
 import { SeminarSubmission } from '@/types/seminar';
 
 export default function NewSeminarPage() {
   const router = useRouter();
 
   const handleSubmit = async (data: SeminarSubmission) => {
-    const res = await fetch('/api/seminars', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+    const created = await apiJson('/api/seminars', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data),
     });
-    if (!res.ok) throw new Error((await res.json()).error ?? '保存失敗');
-    const created = await res.json();
     router.push(`/seminars/${created.id}`);
   };
 

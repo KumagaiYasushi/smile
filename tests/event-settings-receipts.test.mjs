@@ -5,6 +5,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eventDates, validateOccurrences, parseEventTimes, formatEventDate } from '../types/event-schedule.ts';
+import { parseSessionMethods,parseRepeatFees,eventDeliveryLabel } from '../types/event-options.ts';
+import { eventAttendanceText,eventFeeText } from '../lib/event-presentation.ts';
 import { parseParticipant, canIssueReceipt } from '../types/participant.ts';
 
 const moduleUrl = name => new URL(`../lib/${name}.ts`, import.meta.url).href;
@@ -122,4 +124,27 @@ test('unknown, cash and legacy paid records cannot issue; payment and receipt fa
   const duplicate=createParticipant({...pInput,seminar_id:event.id,payment_status:'paid',paid_amount:100,receipt_number:issued.receipt.receipt_number},1);
   assert.throws(()=>receipts.issue(event.id,duplicate.id,1),/重複/);
   assert.equal(db.prepare('SELECT count(*) n FROM participant_receipts').get().n,1);
+`));
+
+test('per-session delivery and repeat fees validate; mixed/online announcements respect actual venues',()=>{
+  const dates=['2027-01-01','2027-01-08'];
+  for(const value of [null,[],{'2027-01-09':'ONLINE'},{[dates[0]]:'toString'}])assert.throws(()=>parseSessionMethods(value,dates));
+  for(const value of [null,[],{dentist:-1},{dentist:1.5},{dentist:'100'},{unknown:1}])assert.throws(()=>parseRepeatFees(value));
+  const event={delivery_method:'ONLINE',venue:'会場',dates,session_delivery_methods:parseSessionMethods({[dates[0]]:'ONSITE',[dates[1]]:'ONLINE'},dates),occurrence_type:'MULTIPLE',fee_dental_hygienist:10001,fee_dentist:20001,fee_other:0,repeat_fees:parseRepeatFees({dentist:550,other:0})};
+  assert.equal(eventDeliveryLabel(event),'現地開催 ／ オンライン');
+  assert.match(eventAttendanceText(event),/2027年1月1日：現地開催/);assert.match(eventAttendanceText(event),/会場/);
+  assert.ok(!eventAttendanceText({...event,session_delivery_methods:{[dates[0]]:'ONLINE',[dates[1]]:'ONLINE'}}).includes('会場'));
+  assert.match(eventFeeText(event),/複数回合計金額/);assert.match(eventFeeText(event),/再受講用/);assert.match(eventFeeText(event),/¥550/);assert.match(eventFeeText(event),/未設定/);
+});
+test('session methods and fee tiers persist independently through edits and rescheduling, without changing confirmed receipts',()=>inDatabase(`
+  const event=createSeminar({...eventInput,occurrence_type:'MULTIPLE',dates:['2027-01-01','2027-01-08'],delivery_method:'ONLINE',session_delivery_methods:{'2027-01-01':'ONSITE','2027-01-08':'ONLINE'},repeat_fees:{dentist:550,other:0,dental_hygienist:null}});
+  assert.equal(event.repeat_fees.dentist,550); assert.equal(event.fee_dentist,20000);
+  assert.equal(updateSeminar(event.id,{notes:'保持'}).session_delivery_methods['2027-01-01'],'ONSITE');
+  updateSeminar(event.id,{dates:['2027-02-01'],session_delivery_methods:{'2027-02-01':'HYBRID'}});
+  const changed=getSeminarById(event.id);assert.equal(changed.session_delivery_methods['2027-01-01'],'ONSITE');assert.equal(changed.session_delivery_methods['2027-02-01'],'HYBRID');assert.equal(changed.repeat_fees.dentist,550);
+  const p=createParticipant({...pInput,seminar_id:event.id,payment_status:'paid',paid_amount:550},1), receipts=createReceiptStore(db);
+  const issued=receipts.issue(event.id,p.id,1).receipt;
+  updateSeminar(event.id,{fee_dentist:99000,repeat_fees:{dentist:1000}});assert.equal(receipts.get(event.id,p.id).amount,550);
+  assert.equal(issued.amount,550);
+  assert.throws(()=>updateSeminar(event.id,{repeat_fees:{dentist:-1}}),/参加費/);assert.equal(getSeminarById(event.id).repeat_fees.dentist,1000);
 `));

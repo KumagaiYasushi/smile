@@ -7,6 +7,9 @@ import Link from 'next/link';
 import { emptySocialGathering, parseSocialGathering, SOCIAL_STATUS_LABELS } from '@/types/social-gathering';
 import type { SocialGathering, SocialStatus } from '@/types/social-gathering';
 import VenuePicker from '@/components/VenuePicker';
+import SocietyMemberPicker from '@/components/SocietyMemberPicker';
+import { emptyRepeatFees, parseRepeatFees,parseSessionMethods } from '@/types/event-options';
+import type { SessionMethods } from '@/types/event-options';
 import EventTimesEditor from '@/components/EventTimesEditor';
 import { OCCURRENCE_LABELS, validateOccurrences, parseEventTimes } from '@/types/event-schedule';
 import type { OccurrenceType, EventTimes } from '@/types/event-schedule';
@@ -28,6 +31,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [dates, setDates] = useState<string[]>(initial?.dates ?? ['']);
   const [occurrence, setOccurrence] = useState<OccurrenceType | ''>(initial?.occurrence_type ?? '');
   const [eventTimes, setEventTimes] = useState<EventTimes>(initial?.event_times ?? {});
+  const [sessionMethods,setSessionMethods]=useState<SessionMethods>(initial ? {...Object.fromEntries((initial.dates??[]).filter(()=>initial.delivery_method).map(date=>[date,initial.delivery_method!])),...initial.session_delivery_methods} : {});
+  const [repeatFees,setRepeatFees]=useState<Record<'dental_hygienist'|'dentist'|'other',string>>(()=>Object.fromEntries(Object.entries(initial?.repeat_fees??emptyRepeatFees()).map(([role,fee])=>[role,fee===null?'':String(fee)])) as Record<'dental_hygienist'|'dentist'|'other',string>);
   const [lecturerRole, setLecturerRole] = useState(initial?.lecturer_role ?? '');
   const [generateTasks, setGenerateTasks] = useState(true);
   const [taskBaseDate, setTaskBaseDate] = useState('');
@@ -67,11 +72,19 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const form=e.currentTarget as HTMLFormElement;
+    if(!form.checkValidity()) {
+      const invalid=form.querySelector<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>('input:invalid,select:invalid,textarea:invalid');
+      const label=invalid?.getAttribute('aria-label')??invalid?.labels?.[0]?.textContent?.trim()??'入力項目';
+      setError(`「${label}」を確認してください。${invalid?.validity.valueMissing?'入力または選択してください。':'入力形式・金額・時刻の範囲を確認してください。'}`);
+      invalid?.reportValidity();
+      return;
+    }
     if (!name.trim()) {
       setError('セミナー名は必須です');
       return;
     }
-    if (!deliveryMethod) {
+    if (!deliveryMethod && !(occurrence==='MULTIPLE'&&validDates.length>0)) {
       setError('開催方法を選択してください');
       return;
     }
@@ -79,12 +92,16 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
     setError('');
     try {
       validateOccurrences(occurrence, validDates);
+      const methods=parseSessionMethods(occurrence==='MULTIPLE'?Object.fromEntries(validDates.map(date=>[date,sessionMethods[date]])):{},validDates);
+      const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
       await onSubmit({
-        ...(!initial?.id ? { generate_tasks: generateTasks, ...(generateTasks && baseDate ? { task_base_date: baseDate } : {}) } : {}),
+        ...(!initial?.id ? { generate_tasks: generateTasks && validDates.length>0, ...(generateTasks && baseDate ? { task_base_date: baseDate } : {}) } : {}),
         event_type: eventType,
-        delivery_method: deliveryMethod,
+        delivery_method: deliveryMethod || methods[validDates[0]],
         occurrence_type: occurrence as OccurrenceType,
+        session_delivery_methods: methods,
+        repeat_fees: repeat,
         event_times: times,
         lecturer_role: lecturerRole ? lecturerRole as 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' : null,
         social_gathering: parseSocialGathering({ ...social, fee: socialFee === '' ? null : Number(socialFee) }),
@@ -115,7 +132,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form noValidate onSubmit={handleSubmit} className="space-y-8">
       {error && (
         <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
           {error}
@@ -133,7 +150,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
               {validDates.map((date) => <option key={date} value={date}>{date}</option>)}
             </select>
           </label>}
-          {generateTasks && validDates.length === 0 && <p>日程未定で登録する場合は自動生成を外してください。後からプレビューして追加できます。</p>}
+          {generateTasks && validDates.length === 0 && <p>日程未定でも登録できます。タスクは日程確定後にプレビューして追加してください。</p>}
         </div>}
         <div>
           <label htmlFor="event-type" className="block text-sm font-medium text-slate-700 mb-1.5">イベント種別</label>
@@ -143,14 +160,15 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             ))}
           </select>
         </div>
-        <Field label="開催方法" required>
-          <select required value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value as DeliveryMethod | '')} className={inputClass}>
+        <Field label="開催方法" required={occurrence!=='MULTIPLE'||!validDates.length}>
+          <select required={occurrence!=='MULTIPLE'||!validDates.length} value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value as DeliveryMethod | '')} className={inputClass}>
             <option value="" disabled>選択してください</option>
             {Object.entries(DELIVERY_METHOD_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </Field>
+        {occurrence==='MULTIPLE'&&<p className="text-xs text-slate-500">上の開催方法は日程未定時の共通設定です。日程が決まっている回は、下の「各回の開催方法」を使います。</p>}
         <Field label="開催回数" required>
           <select required value={occurrence} onChange={e => setOccurrence(e.target.value as OccurrenceType | '')} className={inputClass}>
             <option value="" disabled>選択してください</option>
@@ -161,6 +179,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         <Field label="セミナー名" required>
           <input
             type="text"
+            required
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="例：歯周基本治療セミナー 第1回"
@@ -202,6 +221,10 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             </button>}
           </div>}
         </Field>
+        {occurrence==='MULTIPLE'&&<fieldset className="space-y-3"><legend className="mb-2 font-medium">各回の開催方法</legend>
+          <p className="text-xs text-slate-500">開催日ごとに選択してください。日程未定の間は上の開催方法を保存します。</p>
+          {validDates.map(date=><label key={date} className="block text-sm">{date}の開催方法<select aria-label={`${date}の開催方法`} required value={sessionMethods[date]??''} onChange={e=>setSessionMethods({...sessionMethods,[date]:e.target.value as DeliveryMethod})} className={inputClass}><option value="">選択してください</option>{Object.entries(DELIVERY_METHOD_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>)}
+        </fieldset>}
         <EventTimesEditor dates={validDates} value={eventTimes} onChange={setEventTimes} />
 
         <Field label="セミナー内容">
@@ -218,33 +241,18 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       <Section title="講師・スタッフ">
         <p className="text-sm text-slate-600">保存後の「講師・サポートの出欠予定」で、外来講師・研究会講師・研究会サポートメンバーを複数名登録できます。</p>
         <Field label="講師区分">
-          <select value={lecturerRole} onChange={e => setLecturerRole(e.target.value)} className={inputClass}>
+          <select value={lecturerRole} onChange={e => {setLecturerRole(e.target.value);setLecturerName('');}} className={inputClass}>
             <option value="">区分を選択してください</option>
             <option value="EXTERNAL_LECTURER">外来講師</option><option value="SOCIETY_LECTURER">研究会講師</option>
           </select>
         </Field>
-        <Field label="講師名">
-          <input
-            type="text"
-            value={lecturerName}
-            onChange={(e) => setLecturerName(e.target.value)}
-            placeholder="例：山田 太郎"
-            className={inputClass}
-          />
-        </Field>
+        {lecturerRole==='SOCIETY_LECTURER'?<SocietyMemberPicker role="SOCIETY_LECTURER" label="講師名" value={lecturerName} onChange={setLecturerName}/>:<Field label="講師名"><input type="text" value={lecturerName} onChange={e=>setLecturerName(e.target.value)} placeholder="外来講師の氏名" className={inputClass}/></Field>}
 
         <Field label="研究会サポートメンバー">
           <div className="space-y-2">
             {assistants.map((a, i) => (
               <div key={i} className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={a}
-                  aria-label={`研究会サポートメンバー ${i + 1}`}
-                  onChange={(e) => updateAssistant(i, e.target.value)}
-                  placeholder="氏名"
-                  className={`${inputClass} flex-1`}
-                />
+                <div className="min-w-0 flex-1"><SocietyMemberPicker role="SOCIETY_SUPPORT" label={`研究会サポートメンバー ${i+1}`} value={a} onChange={value=>updateAssistant(i,value)}/></div>
                 {assistants.length > 1 && (
                   <button
                     type="button"
@@ -268,6 +276,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="参加費">
+        {occurrence==='MULTIPLE'&&<h3 className="font-medium">複数回合計金額</h3>}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="歯科衛生士（円）">
             <input
@@ -275,7 +284,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
               value={feeDH}
               onChange={(e) => setFeeDH(e.target.value)}
               min={0}
-              step={100}
+              step={1}
               placeholder="0"
               className={inputClass}
             />
@@ -286,7 +295,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
               value={feeDr}
               onChange={(e) => setFeeDr(e.target.value)}
               min={0}
-              step={100}
+              step={1}
               placeholder="0"
               className={inputClass}
             />
@@ -297,13 +306,14 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
               value={feeOther}
               onChange={(e) => setFeeOther(e.target.value)}
               min={0}
-              step={100}
+              step={1}
               placeholder="0"
               className={inputClass}
             />
           </Field>
         </div>
 
+        {occurrence==='MULTIPLE'&&<fieldset className="space-y-3"><legend className="mb-2 font-medium">単回金額（再受講用）</legend><p className="text-xs text-slate-500">1回あたりの金額です。空欄は未設定、0円は無料です。</p><div className="grid gap-4 sm:grid-cols-3">{([['dental_hygienist','歯科衛生士'],['dentist','歯科医師'],['other','その他']] as const).map(([role,label])=><label key={role} className="block text-sm">{label}・再受講1回（円）<input aria-label={`${label}・再受講1回（円）`} type="number" min="0" step="1" value={repeatFees[role]} onChange={e=>setRepeatFees({...repeatFees,[role]:e.target.value})} className={inputClass}/></label>)}</div></fieldset>}
         <Field label="参加対象">
           <input
             type="text"
@@ -333,7 +343,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             value={venueFee}
             onChange={(e) => setVenueFee(e.target.value)}
             min={0}
-            step={1000}
+            step={1}
             placeholder="0"
             className={`${inputClass} max-w-xs`}
           />
@@ -381,6 +391,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
       </Section>
 
+      {error&&<p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
         <button
           type="button"

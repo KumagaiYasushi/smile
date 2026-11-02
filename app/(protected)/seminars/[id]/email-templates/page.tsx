@@ -4,7 +4,7 @@ import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { formatEventDate } from '@/types/event-schedule';
 import { Seminar, deliveryMethodLabel } from '@/types/seminar';
-import { eventAttendanceText } from '@/lib/event-presentation';
+import { eventAttendanceText,eventFeeText } from '@/lib/event-presentation';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -16,13 +16,7 @@ type Template = {
 };
 
 
-function feeText(seminar: Seminar) {
-  const lines = [];
-  if (seminar.fee_dental_hygienist > 0) lines.push(`　歯科衛生士：¥${seminar.fee_dental_hygienist.toLocaleString()}`);
-  if (seminar.fee_dentist > 0) lines.push(`　歯科医師　：¥${seminar.fee_dentist.toLocaleString()}`);
-  if (seminar.fee_other > 0) lines.push(`　その他　　：¥${seminar.fee_other.toLocaleString()}`);
-  return lines.join('\n') || '　（未設定）';
-}
+const feeText=eventFeeText;
 
 const TEMPLATES: Template[] = [
   {

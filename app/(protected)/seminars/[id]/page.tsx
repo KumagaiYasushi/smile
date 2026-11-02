@@ -4,7 +4,8 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Seminar, CHECKLIST_ITEMS, EVENT_TYPE_LABELS, deliveryMethodLabel } from '@/types/seminar';
-import { eventAttendanceText } from '@/lib/event-presentation';
+import { eventDeliveryLabel,eventMethodForDate } from '@/types/event-options';
+import { eventAttendanceText,eventFeeText } from '@/lib/event-presentation';
 import { formatEventDate, OCCURRENCE_LABELS } from '@/types/event-schedule';
 import { SOCIAL_STATUS_LABELS, formatSocialDateTime } from '@/types/social-gathering';
 
@@ -50,10 +51,6 @@ export default function SeminarDetailPage({ params }: Props) {
   const generateSns = () => {
     if (!seminar) return;
     const dateLines = seminar.dates.map(date => formatEventDate(date, seminar.event_times)).join('\n');
-    const fees: string[] = [];
-    if (seminar.fee_dental_hygienist > 0) fees.push(`歯科衛生士：${formatCurrency(seminar.fee_dental_hygienist)}`);
-    if (seminar.fee_dentist > 0) fees.push(`歯科医師：${formatCurrency(seminar.fee_dentist)}`);
-    if (seminar.fee_other > 0) fees.push(`その他：${formatCurrency(seminar.fee_other)}`);
 
     const text = [
       `【${seminar.name}】`,
@@ -64,7 +61,7 @@ export default function SeminarDetailPage({ params }: Props) {
       '',
       eventAttendanceText(seminar),
       seminar.lecturer_name ? `👨‍⚕️ 講師\n${seminar.lecturer_name}\n` : '',
-      fees.length > 0 ? `💴 参加費\n${fees.join('\n')}\n` : '',
+      `💴 参加費\n${eventFeeText(seminar)}\n`,
       seminar.target_participants ? `🎯 対象\n${seminar.target_participants}\n` : '',
       '#歯周基本治療研究会 #歯周病 #セミナー #歯科',
     ]
@@ -161,7 +158,7 @@ export default function SeminarDetailPage({ params }: Props) {
           <Card title="基本情報">
             <dl className="space-y-3">
               <Row label="イベント種別">{EVENT_TYPE_LABELS[seminar.event_type]}</Row>
-              <Row label="開催方法">{deliveryMethodLabel(seminar.delivery_method)}</Row>
+              <Row label="開催方法">{eventDeliveryLabel(seminar)}</Row>
               <Row label="開催回数">{seminar.occurrence_type ? OCCURRENCE_LABELS[seminar.occurrence_type] : '未設定'}</Row>
               <Row label="日程">
                 {seminar.dates.length === 0 ? (
@@ -169,7 +166,7 @@ export default function SeminarDetailPage({ params }: Props) {
                 ) : (
                   <ul className="space-y-1">
                     {seminar.dates.map((d, i) => (
-                      <li key={i} className="text-slate-700">{formatEventDate(d, seminar.event_times)}</li>
+                      <li key={i} className="text-slate-700">{formatEventDate(d, seminar.event_times)}{seminar.occurrence_type==='MULTIPLE'&&<span className="ml-2 text-sm text-slate-500">{deliveryMethodLabel(eventMethodForDate(seminar,d))}</span>}</li>
                     ))}
                   </ul>
                 )}
@@ -191,11 +188,12 @@ export default function SeminarDetailPage({ params }: Props) {
           </Card>
 
           {/* 参加費カード */}
-          <Card title="参加費・対象">
+          <Card title={seminar.occurrence_type==='MULTIPLE'?'参加費・対象（複数回合計）':'参加費・対象'}>
             <dl className="space-y-3">
               <Row label="歯科衛生士">{formatCurrency(seminar.fee_dental_hygienist)}</Row>
               <Row label="歯科医師">{formatCurrency(seminar.fee_dentist)}</Row>
               <Row label="その他">{formatCurrency(seminar.fee_other)}</Row>
+              {seminar.occurrence_type==='MULTIPLE'&&<Row label="単回金額（再受講用）"><div className="space-y-1">{([['dental_hygienist','歯科衛生士'],['dentist','歯科医師'],['other','その他']] as const).map(([role,label])=><p key={role}>{label}：{seminar.repeat_fees[role]===null?'未設定':`¥${seminar.repeat_fees[role]!.toLocaleString()}／回`}</p>)}</div></Row>}
               <Row label="参加対象">{seminar.target_participants || <span className="text-slate-400">未設定</span>}</Row>
             </dl>
           </Card>

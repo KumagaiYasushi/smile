@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import SocietyMemberPicker from '@/components/SocietyMemberPicker';
 import { apiJson } from '@/lib/client-api';
 import { STAFF_ROLE_LABELS, STAFF_SELECTABLE_ROLE_LABELS, STAFF_RESPONSE_LABELS, attendanceDateKeys, attendanceDateLabel } from '@/types/staff-attendance';
 import type { StaffPerson, StaffInput, StaffRole, StaffResponse, StaffAttendance, StaffHistory } from '@/types/staff-attendance';
@@ -29,11 +30,11 @@ function AttendanceEditor({ initial, dates, onSave, onCancel }: {
   return <form aria-label="出欠予定の編集" onSubmit={submit} className="space-y-4 rounded-2xl border border-sky-200 bg-white p-5">
     <h2 className="font-bold">{initial ? '出欠予定を編集' : '講師・サポートメンバーを追加'}</h2>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    <label className="block text-sm font-medium">氏名（必須）
+    {role==='SOCIETY_LECTURER'||role==='SOCIETY_SUPPORT'?<SocietyMemberPicker role={role} label="氏名（必須）" required value={name} onChange={setName}/>:<label className="block text-sm font-medium">氏名（必須）
       <input autoFocus required maxLength={200} value={name} onChange={e => setName(e.target.value)} className={inputClass} />
-    </label>
+    </label>}
     <label className="block text-sm font-medium">役割
-      <select aria-label="役割" required value={role} onChange={e => setRole(e.target.value as StaffRole)} className={inputClass}>
+      <select aria-label="役割" required value={role} onChange={e => {setRole(e.target.value as StaffRole);setName('');}} className={inputClass}>
         <option value="" disabled>区分を選択してください</option>
         {Object.entries(STAFF_SELECTABLE_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select>

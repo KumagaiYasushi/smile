@@ -125,7 +125,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await editor.getByLabel('予約方法・キャンセル条件', { exact: true }).fill('UI検証用の架空条件');
     await page.route(`${base}/api/venues`, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の会場保存エラー' }) }), { times: 1 });
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('検証用の会場保存エラー');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用の会場保存エラー');
     await expect(editor.getByLabel('住所', { exact: true })).toHaveValue('UI検証の架空住所');
     assert.equal(db.prepare('SELECT count(*) n FROM venues').get().n, 0);
     await layout('会場の編集');
@@ -143,6 +143,61 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByRole('article')).toHaveCount(1);
     await layout('会場台帳'); await screenshot('venues');
   });
+  await step('研究会名簿への登録と選択候補', async () => {
+    await page.getByRole('link',{name:'講師・サポート名簿',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'研究会講師・サポート名簿',exact:true})).toBeVisible();
+    for(const [name,role] of [['UI検証の架空講師','SOCIETY_LECTURER'],['UI検証の架空サポート','SOCIETY_SUPPORT'],['UI検証の追加サポート','SOCIETY_SUPPORT'],['競合時に保持する氏名','SOCIETY_SUPPORT']]) {
+      await page.getByRole('button',{name:'＋ 名簿に追加',exact:true}).click();
+      const editor=page.getByRole('form',{name:'研究会名簿の編集',exact:true});
+      await editor.getByLabel('氏名',{exact:true}).fill(name);
+      await editor.getByLabel('区分',{exact:true}).selectOption(role);
+      await editor.getByRole('button',{name:'保存する',exact:true}).click();
+      await expect(editor).toBeHidden();
+      await expect(page.getByRole('heading',{name,exact:true})).toBeVisible();
+    }
+    await layout('研究会名簿');
+  });
+  await step('複数回の日別開催方法・再受講料金・登録エラーからの再保存',async()=>{
+    await page.goto(`${base}/seminars/new`);
+    await page.getByLabel('セミナー名',{exact:false}).fill('UI検証・各回別イベント');
+    await page.getByLabel('開催回数',{exact:false}).selectOption('MULTIPLE');
+    await page.getByLabel('開催日 1',{exact:true}).fill('2027-08-01');
+    await page.getByRole('button',{name:'＋ 日程を追加',exact:true}).click();
+    await page.getByLabel('開催日 2',{exact:true}).fill('2027-08-08');
+    await page.getByLabel('2027-08-01の開催方法',{exact:true}).selectOption('ONSITE');
+    await page.getByLabel('2027-08-08の開催方法',{exact:true}).selectOption('ONLINE');
+    await page.getByLabel('歯科医師（円）',{exact:true}).fill('10001');
+    await page.getByLabel('歯科医師・再受講1回（円）',{exact:true}).fill('550');
+    await page.getByRole('button',{name:'登録する',exact:true}).click();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('タスク期限の基準日');
+    await page.getByLabel('タスク期限の基準日',{exact:true}).selectOption('2027-08-01');
+    await page.route(`${base}/api/seminars`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'検証用のイベント保存エラー'})}),{times:1});
+    await page.getByRole('button',{name:'登録する',exact:true}).click();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用のイベント保存エラー');
+    await expect(page.getByLabel('歯科医師・再受講1回（円）',{exact:true})).toHaveValue('550');
+    await page.getByRole('button',{name:'登録する',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'UI検証・各回別イベント',exact:true})).toBeVisible();
+    const sid=Number(new URL(page.url()).pathname.split('/')[2]);
+    const row=db.prepare('SELECT * FROM seminars WHERE id=?').get(sid);
+    assert.deepEqual(JSON.parse(row.session_delivery_methods),{'2027-08-01':'ONSITE','2027-08-08':'ONLINE'});
+    assert.equal(JSON.parse(row.repeat_fees).dentist,550);assert.equal(row.fee_dentist,10001);
+    await expect(page.getByText('歯科医師：¥550／回',{exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'自動生成',exact:true}).click();
+    const text=await page.getByRole('textbox').inputValue();
+    assert.ok(text.includes('2027年8月1日：現地開催'));assert.ok(text.includes('2027年8月8日：オンライン'));assert.ok(text.includes('再受講用'));
+    await page.getByRole('button',{name:'キャンセル',exact:true}).click();
+    await page.getByRole('link',{name:'編集',exact:true}).click();
+    await expect(page.getByLabel('2027-08-08の開催方法',{exact:true})).toHaveValue('ONLINE');
+    await expect(page.getByLabel('歯科医師・再受講1回（円）',{exact:true})).toHaveValue('550');
+    await page.getByRole('button',{name:'変更を保存',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'UI検証・各回別イベント',exact:true})).toBeVisible();
+    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'削除',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
+    await page.goto(`${base}/seminars/new`);await page.getByLabel('セミナー名',{exact:false}).fill('UI検証・日程未定');
+    await page.getByLabel(/^開催方法(?:\s*\*)?$/).selectOption('ONLINE');await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
+    await page.getByRole('button',{name:'登録する',exact:true}).click();await expect(page.getByRole('heading',{name:'UI検証・日程未定',exact:true})).toBeVisible();
+    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'削除',exact:true}).click();await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
+  });
   await step('テンプレート登録', async () => {
     await page.getByRole('link', { name: 'タスクテンプレート', exact: true }).click();
     await page.getByRole('button', { name: '＋ テンプレートを追加', exact: true }).click();
@@ -157,12 +212,13 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   await step('イベント作成とテンプレート自動生成', async () => {
     await page.getByRole('link', { name: '＋ 新規イベント', exact: true }).click();
     await page.getByLabel('セミナー名', { exact: false }).fill(eventName);
-    const methods = page.getByLabel('開催方法', { exact: false });
+    const methods = page.getByLabel(/^開催方法(?:\s*\*)?$/);
     assert.deepEqual(await methods.locator('option:not([disabled])').allTextContents(), Object.values(methodLabels));
     assert.equal(await methods.inputValue(), '');
     await page.getByRole('button', { name: '登録する', exact: true }).click();
     await expect(methods).toBeVisible();
     assert.equal(await methods.evaluate(element => element.validity.valueMissing), true);
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('開催方法');
     await methods.selectOption(method);
     const occurrence = page.getByLabel('開催回数', { exact: false });
     assert.equal(await occurrence.inputValue(), '');
@@ -176,13 +232,15 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByLabel('会場名・住所', { exact: true })).toHaveValue('UI検証の架空会場 / 第1会議室 / UI検証の架空住所');
     await page.getByRole('button', { name: '参考料金を会場費に入力', exact: true }).click();
     await expect(page.getByLabel('会場費（円）', { exact: true })).toHaveValue('10000');
-    await page.getByLabel('会場費（円）', { exact: true }).fill('15000');
+    await page.getByLabel('会場費（円）', { exact: true }).fill('15001');
     await page.getByLabel('会場名・住所', { exact: true }).fill('UI検証の会場・配信拠点');
     await page.getByLabel('開催日 1', { exact: true }).fill('2027-06-01');
+    await page.getByLabel('2027-06-01の開催方法',{exact:true}).selectOption(method);
+    await page.getByLabel('歯科医師・再受講1回（円）',{exact:true}).fill('550');
     await expect(page.getByLabel('2027-06-01の時刻を設定', { exact: true })).not.toBeChecked();
     await expect(page.getByLabel('2027-06-01の開始時刻', { exact: true })).toHaveCount(0);
-    await page.getByLabel('講師名', { exact: true }).fill('UI検証の架空講師');
-    await page.getByRole('group', { name: '研究会サポートメンバー', exact: true }).getByRole('textbox').fill('UI検証の架空サポート');
+    await page.getByLabel('講師名', { exact: true }).selectOption({label:'UI検証の架空講師'});
+    await page.getByLabel('研究会サポートメンバー 1',{exact:true}).selectOption({label:'UI検証の架空サポート'});
     await page.getByLabel('歯科医師（円）', { exact: true }).fill('10000');
     await page.getByLabel('懇親会の開催', { exact: true }).selectOption('HELD');
     await page.getByLabel('懇親会の開始日時（日本時間）', { exact: true }).fill('2027-06-01T18:30');
@@ -200,7 +258,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     assert.equal(db.prepare('SELECT due_date FROM event_tasks WHERE seminar_id=?').get(eventId).due_date, '2027-05-02');
     assert.equal(db.prepare('SELECT occurrence_type FROM seminars WHERE id=?').get(eventId).occurrence_type, 'MULTIPLE');
     assert.equal(db.prepare('SELECT event_times FROM seminars WHERE id=?').get(eventId).event_times, '{}');
-    await expect(page.getByText('2027年6月1日', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^2027年6月1日(?:現地開催|オンライン)/)).toBeVisible();
     await layout('イベント詳細');
   });
   await step('任意の時刻を設定・解除', async () => {
@@ -210,11 +268,11 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByLabel('2027-06-01の終了時刻', { exact: true }).fill('16:30');
     await layout('任意の時刻設定');
     await page.getByRole('button', { name: '変更を保存', exact: true }).click();
-    await expect(page.getByText('2027年6月1日 09:30〜16:30（日本時間）', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^2027年6月1日 09:30〜16:30（日本時間）/)).toBeVisible();
     await page.goto(`${base}/seminars/${eventId}/edit`);
     await page.getByLabel('2027-06-01の時刻を設定', { exact: true }).uncheck();
     await page.getByRole('button', { name: '変更を保存', exact: true }).click();
-    await expect(page.getByText('2027年6月1日', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^2027年6月1日(?:現地開催|オンライン)/)).toBeVisible();
     assert.equal(db.prepare('SELECT event_times FROM seminars WHERE id=?').get(eventId).event_times, '{}');
   });
   await step('会場台帳の編集競合・利用停止・イベント記録保持', async () => {
@@ -226,7 +284,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     const concurrent = await page.request.patch(`${base}/api/venues/${venueId}`, { headers: { Origin: base }, data: { version: row.version, notes: '別操作による更新' } });
     assert.equal(concurrent.status(), 200);
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('別の操作で更新');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('別の操作で更新');
     await expect(editor.getByLabel('設備・備品', { exact: true })).toHaveValue('競合時に保持する設備');
     await editor.getByRole('button', { name: 'キャンセル', exact: true }).click();
     await page.getByRole('button', { name: '最新情報を取得', exact: true }).click();
@@ -235,10 +293,10 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await editor.getByLabel('参考料金（円）', { exact: true }).fill('20000');
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('保存しました');
-    assert.deepEqual(db.prepare('SELECT venue,venue_fee FROM seminars WHERE id=?').get(eventId), { venue: 'UI検証の会場・配信拠点', venue_fee: 15000 });
+    assert.deepEqual(db.prepare('SELECT venue,venue_fee FROM seminars WHERE id=?').get(eventId), { venue: 'UI検証の会場・配信拠点', venue_fee: 15001 });
     await page.route(`${base}/api/venues/${venueId}`, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の利用停止エラー' }) }), { times: 1 });
     await page.getByRole('button', { name: '利用停止にする', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '検証用の利用停止エラー' })).toBeVisible();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: '検証用の利用停止エラー' })).toBeVisible();
     assert.equal(db.prepare('SELECT active FROM venues WHERE id=?').get(venueId).active, 1);
     await page.getByRole('button', { name: '利用停止にする', exact: true }).click();
     await expect(page.getByRole('article')).toHaveCount(0);
@@ -272,7 +330,8 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   await step('開催方法の編集・一覧・SNS案内文', async () => {
     for (const value of ['ONSITE', 'ONLINE', 'HYBRID', method]) {
       await page.getByRole('link', { name: '編集', exact: true }).click();
-      await page.getByLabel('開催方法', { exact: false }).selectOption(value);
+      await page.getByLabel(/^開催方法(?:\s*\*)?$/).selectOption(value);
+      await page.getByLabel('2027-06-01の開催方法',{exact:true}).selectOption(value);
       await page.getByRole('button', { name: '変更を保存', exact: true }).click();
       await expect(page.getByRole('heading', { name: eventName, exact: true })).toBeVisible();
       assert.equal(db.prepare('SELECT delivery_method FROM seminars WHERE id=?').get(eventId).delivery_method, value);
@@ -298,7 +357,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByLabel('懇親会の参加費（1人あたり・円）', { exact: true }).fill('0');
     await page.route(`${base}/api/seminars/${eventId}`, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の懇親会保存エラー' }) }), { times: 1 });
     await page.getByRole('button', { name: '変更を保存', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '検証用の懇親会保存エラー' })).toBeVisible();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: '検証用の懇親会保存エラー' })).toBeVisible();
     await expect(page.getByLabel('懇親会の場所・住所', { exact: true })).toHaveValue('UI検証の架空レストラン');
     await expect(page.getByLabel('懇親会の参加費（1人あたり・円）', { exact: true })).toHaveValue('0');
     await layout('懇親会の編集');
@@ -346,7 +405,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     const path = `${base}/api/seminars/${eventId}/lunch`;
     await page.route(path, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の昼食保存エラー' }) }), { times: 1 });
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('検証用の昼食保存エラー');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用の昼食保存エラー');
     await expect(editor.getByLabel('お店・注文先', { exact: true })).toHaveValue('UI検証の架空弁当店');
     assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_plans').get().n, 0);
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
@@ -360,7 +419,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     } });
     assert.equal(concurrent.status(), 200);
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('別の操作で更新');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('別の操作で更新');
     await expect(editor.getByLabel('人数・食数（人・食）', { exact: true })).toHaveValue('5');
     await editor.getByRole('button', { name: 'キャンセル', exact: true }).click();
     await page.getByRole('button', { name: '最新情報を取得', exact: true }).click();
@@ -397,12 +456,12 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(lecturerCard).toContainText('出席予定');
     await page.getByRole('button', { name: '＋ メンバーを追加', exact: true }).click();
     assert.deepEqual(await editor.getByLabel('役割', { exact: true }).locator('option:not([disabled])').allTextContents(), ['外来講師','研究会講師','研究会サポートメンバー']);
-    await editor.getByLabel('氏名（必須）', { exact: true }).fill('UI検証の追加サポート');
+    await editor.getByLabel('氏名（必須）', { exact: true }).selectOption('UI検証の追加サポート');
     await editor.getByLabel('2027-06-01の出欠予定', { exact: true }).selectOption('ABSENT');
     const path = `${base}/api/seminars/${eventId}/staff-attendance`;
     await page.route(path, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の出欠保存エラー' }) }), { times: 1 });
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('検証用の出欠保存エラー');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用の出欠保存エラー');
     await expect(editor.getByLabel('氏名（必須）', { exact: true })).toHaveValue('UI検証の追加サポート');
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('保存しました');
@@ -413,9 +472,9 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
       name: person.name, role: person.role, schedule: ['2027-06-01'], responses: { '2027-06-01': 'TENTATIVE' }, version: person.version,
     } });
     assert.equal(concurrent.status(), 200);
-    await editor.getByLabel('氏名（必須）', { exact: true }).fill('競合時に保持する氏名');
+    await editor.getByLabel('氏名（必須）', { exact: true }).selectOption('競合時に保持する氏名');
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('別の操作で更新');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('別の操作で更新');
     await expect(editor.getByLabel('氏名（必須）', { exact: true })).toHaveValue('競合時に保持する氏名');
     await editor.getByRole('button', { name: 'キャンセル', exact: true }).click();
     await page.getByRole('button', { name: '最新情報を取得', exact: true }).click();
@@ -455,7 +514,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     const concurrent = await page.request.patch(`${base}/api/seminars/${eventId}/tasks/${task.id}`, { headers: { Origin: base }, data: { description: '別操作からの更新', version: task.version } });
     assert.equal(concurrent.status(), 200);
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
-    await expect(editor.getByRole('alert')).toContainText('別のメンバーが更新');
+    await expect(editor.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('別のメンバーが更新');
     await expect(editor.getByLabel('説明', { exact: true })).toHaveValue('UI検証の入力保持');
     await editor.getByRole('button', { name: 'キャンセル', exact: true }).click();
     await page.getByRole('button', { name: '最新の内容を取得', exact: true }).click();
@@ -547,7 +606,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.route(`${base}/api/seminars/${eventId}/lunch/${row.id}`, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の昼食削除エラー' }) }), { times: 1 });
     page.once('dialog', dialog => dialog.accept());
     await cancelled.getByRole('button', { name: '削除', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '検証用の昼食削除エラー' })).toBeVisible();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: '検証用の昼食削除エラー' })).toBeVisible();
     assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_plans').get().n, before);
     page.once('dialog', dialog => dialog.accept());
     await cancelled.getByRole('button', { name: '削除', exact: true }).click();
@@ -573,7 +632,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.route(`${base}/api/seminars/${eventId}/staff-attendance/${personId}`, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の出欠削除エラー' }) }), { times: 1 });
     page.once('dialog', dialog => dialog.accept());
     await removed.getByRole('button', { name: '削除', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '検証用の出欠削除エラー' })).toBeVisible();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: '検証用の出欠削除エラー' })).toBeVisible();
     assert.equal(db.prepare('SELECT count(*) n FROM event_staff').get().n, before);
     page.once('dialog', dialog => dialog.accept());
     await removed.getByRole('button', { name: '削除', exact: true }).click();
@@ -598,7 +657,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.route(`${base}/api/seminars/${eventId}/participants`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の保存エラー' }) }), { times: 1 });
     await page.getByRole('button', { name: '保存', exact: true }).click();
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('alert')).toContainText('検証用の保存エラー');
+    await expect(dialog.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用の保存エラー');
     assert.equal(db.prepare('SELECT count(*) n FROM participants').get().n, 0);
     await expect(page.getByLabel('氏名', { exact: false })).toHaveValue('UI検証専用の架空参加者');
     await page.getByRole('button', { name: '保存', exact: true }).click();
@@ -674,7 +733,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.route(`${base}/api/seminars/${eventId}/participants/${participantId}`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '検証用の削除エラー' }) }), { times: 1 });
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: '削除', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '検証用の削除エラー' })).toBeVisible();
+    await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)').filter({ hasText: '検証用の削除エラー' })).toBeVisible();
     assert.equal(db.prepare('SELECT count(*) n FROM participants').get().n, 1);
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: '削除', exact: true }).click();

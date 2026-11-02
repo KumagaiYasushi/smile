@@ -1,3 +1,4 @@
+import type { SessionMethods,RepeatFees } from './event-options.ts';
 import type { SocialGathering } from './social-gathering.ts';
 import type { EventTimes, OccurrenceType } from './event-schedule.ts';
 
@@ -35,6 +36,8 @@ export type Seminar = {
   delivery_method: DeliveryMethod | null;
   occurrence_type: OccurrenceType | null;
   event_times: EventTimes;
+  session_delivery_methods: SessionMethods;
+  repeat_fees: RepeatFees;
   lecturer_role: 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' | null;
   social_gathering: SocialGathering;
   name: string;

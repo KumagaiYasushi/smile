@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
       event_type: body.event_type ?? 'SEMINAR',
       delivery_method: body.delivery_method ?? null,
       occurrence_type: body.occurrence_type,
+      session_delivery_methods: body.session_delivery_methods === undefined ? {} : body.session_delivery_methods,
+      repeat_fees: body.repeat_fees === undefined ? {dental_hygienist:null,dentist:null,other:null} : body.repeat_fees,
       event_times: body.event_times === undefined ? {} : body.event_times,
       lecturer_role: body.lecturer_role ?? null,
       social_gathering: gathering,

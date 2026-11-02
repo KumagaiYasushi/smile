@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { eventDeliveryLabel,eventMethodForDate } from '@/types/event-options';
 import { formatEventDate } from '@/types/event-schedule';
-import { Seminar, CHECKLIST_ITEMS, EventType, EVENT_TYPE_LABELS, deliveryMethodLabel } from '@/types/seminar';
+import { Seminar, CHECKLIST_ITEMS, EventType, EVENT_TYPE_LABELS } from '@/types/seminar';
 
 function ChecklistProgress({ seminar }: { seminar: Seminar }) {
   const completed = CHECKLIST_ITEMS.filter((item) => seminar[item.key]).length;
@@ -92,7 +93,7 @@ export default function HomePage() {
               className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-sky-300 transition-all block"
             >
               <span className="inline-block mb-3 text-xs bg-sky-50 text-sky-700 px-2 py-1 rounded-full">{EVENT_TYPE_LABELS[seminar.event_type]}</span>
-              <span className="inline-block mb-3 ml-2 text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full">開催方法：{deliveryMethodLabel(seminar.delivery_method)}</span>
+              <span className="inline-block mb-3 ml-2 text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
               <div className="flex items-start justify-between mb-3">
                 <h2 className="font-bold text-slate-800 text-base leading-tight flex-1 mr-2">
                   {seminar.name}
@@ -125,7 +126,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              {seminar.delivery_method !== 'ONLINE' && seminar.venue && (
+              {(seminar.dates.length?seminar.dates.some(date=>eventMethodForDate(seminar,date)!=='ONLINE'):seminar.delivery_method!=='ONLINE') && seminar.venue && (
                 <div className="text-sm text-slate-600 mb-3 flex items-center gap-1">
                   <span className="text-slate-400">📍</span>
                   <span className="truncate">{seminar.venue}</span>

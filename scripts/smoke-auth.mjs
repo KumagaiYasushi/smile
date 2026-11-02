@@ -18,6 +18,7 @@ import { smokeSocialGathering } from './smoke-social-gathering.mjs';
 import { smokeLunch } from './smoke-lunch.mjs';
 import { smokeVenues } from './smoke-venues.mjs';
 import { smokeSettingsReceipts } from './smoke-settings-receipts.mjs';
+import { smokeSessionDirectory } from './smoke-session-directory.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
 const directory = mkdtempSync(join(tmpdir(), 'smile-auth-smoke-'));
@@ -68,7 +69,7 @@ try {
   assert.ok(ready, 'isolated server readiness');
   const guest = client();
   await guest.request('/login');
-  for (const path of ['/', '/dashboard', '/seminars/new', '/seminars/1', '/seminars/1/edit', '/seminars/1/participants', '/seminars/1/email-templates', '/seminars/1/participants/1/receipt', '/seminars/1/tasks', '/seminars/1/reschedule', '/seminars/1/staff-attendance', '/seminars/1/lunch', '/task-templates', '/venues', '/admin/users']) {
+  for (const path of ['/', '/dashboard', '/seminars/new', '/seminars/1', '/seminars/1/edit', '/seminars/1/participants', '/seminars/1/email-templates', '/seminars/1/participants/1/receipt', '/seminars/1/tasks', '/seminars/1/reschedule', '/seminars/1/staff-attendance', '/seminars/1/lunch', '/task-templates', '/venues', '/society-members', '/admin/users']) {
     const response = await guest.request(path, 'GET', undefined, 307);
     assert.ok(response.headers.get('location').endsWith('/login'));
   }
@@ -87,6 +88,7 @@ try {
     ['/api/seminars/1/staff-attendance/import', ['POST']],
     ['/api/seminars/1/lunch', ['GET', 'POST']], ['/api/seminars/1/lunch/1', ['PATCH', 'DELETE']],
     ['/api/seminars/1/participants/1/receipt', ['GET', 'POST']],
+    ['/api/society-members', ['GET', 'POST']], ['/api/society-members/1', ['PATCH']],
     ['/api/venues', ['GET', 'POST']], ['/api/venues/1', ['GET', 'PATCH']],
   ]) {
     for (const method of methods) await guest.request(path, method, method === 'GET' ? undefined : {}, 401);
@@ -110,6 +112,7 @@ try {
   await smokeLunch(member);
   await smokeVenues(member);
   await smokeSettingsReceipts(member);
+  await smokeSessionDirectory(member);
   assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_plans').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_history').get().n, 0);
   assert.equal(db.prepare('SELECT count(*) n FROM event_staff').get().n, 0);

@@ -8,6 +8,7 @@ import { eventDates, validateOccurrences, parseEventTimes } from '../types/event
 import { TaskError } from '../types/task.ts';
 import { parseParticipant } from '../types/participant.ts';
 import type { Participant, ParticipantRole, PaymentStatus, ParticipantFields } from '../types/participant.ts';
+import { parseSessionMethods,parseRepeatFees,emptyRepeatFees } from '../types/event-options.ts';
 import { initReceiptSchema } from './receipts.ts';
 
 export type { Seminar, SeminarInput } from '@/types/seminar';
@@ -107,6 +108,8 @@ function initSchema(db: Database.Database) {
     }
     if (!columns.some(column => column.name === 'occurrence_type')) db.exec("ALTER TABLE seminars ADD COLUMN occurrence_type TEXT CHECK(occurrence_type IN ('SINGLE','MULTIPLE'))");
     if (!columns.some(column => column.name === 'event_times')) db.exec("ALTER TABLE seminars ADD COLUMN event_times TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(event_times))");
+    if (!columns.some(column => column.name === 'session_delivery_methods')) db.exec("ALTER TABLE seminars ADD COLUMN session_delivery_methods TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(session_delivery_methods))");
+    if (!columns.some(column => column.name === 'repeat_fees')) db.exec("ALTER TABLE seminars ADD COLUMN repeat_fees TEXT NOT NULL DEFAULT '{\"dental_hygienist\":null,\"dentist\":null,\"other\":null}' CHECK(json_valid(repeat_fees))");
     if (!columns.some(column => column.name === 'lecturer_role')) db.exec("ALTER TABLE seminars ADD COLUMN lecturer_role TEXT CHECK(lecturer_role IN ('EXTERNAL_LECTURER','SOCIETY_LECTURER'))");
   }).immediate();
   db.transaction(() => {
@@ -121,7 +124,9 @@ function initSchema(db: Database.Database) {
 
 // ─── Seminar ─────────────────────────────────────────────────────────────────
 
-type SeminarRow = Omit<Seminar, 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+type SeminarRow = Omit<Seminar, 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+  session_delivery_methods: string;
+  repeat_fees: string;
   event_times: string;
   social_gathering: string;
   dates: string;
@@ -137,6 +142,8 @@ function rowToSeminar(row: SeminarRow): Seminar {
   return {
     ...row,
     event_times: JSON.parse(row.event_times),
+    session_delivery_methods: JSON.parse(row.session_delivery_methods),
+    repeat_fees: JSON.parse(row.repeat_fees),
     social_gathering: JSON.parse(row.social_gathering),
     dates: JSON.parse(row.dates),
     assistant_members: JSON.parse(row.assistant_members),
@@ -166,23 +173,28 @@ export function createSeminar(input: SeminarInput): Seminar {
   const occurrence = validateOccurrences(input.occurrence_type, dates);
   const times = parseEventTimes(input.event_times === undefined ? {} : input.event_times, dates);
   validateLecturerRole(input.lecturer_role);
+  validateFees(input);
+  const methods=parseSessionMethods(input.session_delivery_methods===undefined?{}:input.session_delivery_methods,dates);
+  const repeatFees=parseRepeatFees(input.repeat_fees===undefined?emptyRepeatFees():input.repeat_fees);
   const stmt = db.prepare(`
     INSERT INTO seminars (
       event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
       fee_dental_hygienist, fee_dentist, fee_other, target_participants,
-      venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role,
+      venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role, session_delivery_methods, repeat_fees,
       lecturer_invitation_sent, photo_received, abstract_300_requested,
       abstract_800_requested, receipt_issued, notes
     ) VALUES (
       @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
       @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants,
-      @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role,
+      @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role, @session_delivery_methods, @repeat_fees,
       @lecturer_invitation_sent, @photo_received, @abstract_300_requested,
       @abstract_800_requested, @receipt_issued, @notes
     )
   `);
   const result = stmt.run({
     ...input,
+    session_delivery_methods: JSON.stringify(methods),
+    repeat_fees: JSON.stringify(repeatFees),
     occurrence_type: occurrence,
     event_times: JSON.stringify(times),
     lecturer_role: input.lecturer_role ?? null,
@@ -209,6 +221,12 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
   const dates = eventDates(merged.dates);
   if (input.occurrence_type !== undefined || input.dates !== undefined) validateOccurrences(merged.occurrence_type, dates);
   validateLecturerRole(merged.lecturer_role);
+  validateFees(merged);
+  const methods=input.session_delivery_methods===undefined?current.session_delivery_methods:{
+    ...Object.fromEntries(Object.entries(current.session_delivery_methods).filter(([date])=>!dates.includes(date))),
+    ...parseSessionMethods(input.session_delivery_methods,dates),
+  };
+  const repeatFees=input.repeat_fees===undefined?current.repeat_fees:parseRepeatFees(input.repeat_fees);
   const times = input.event_times === undefined ? current.event_times : {
     ...Object.fromEntries(Object.entries(current.event_times).filter(([date]) => !dates.includes(date))),
     ...parseEventTimes(input.event_times, dates),
@@ -222,10 +240,12 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
       venue = @venue, venue_id = @venue_id, venue_fee = @venue_fee, sns_announcement = @sns_announcement,
       lecturer_invitation_sent = @lecturer_invitation_sent, photo_received = @photo_received,
       abstract_300_requested = @abstract_300_requested, abstract_800_requested = @abstract_800_requested,
-      receipt_issued = @receipt_issued, notes = @notes, occurrence_type=@occurrence_type, event_times=@event_times, lecturer_role=@lecturer_role
+      receipt_issued = @receipt_issued, notes = @notes, occurrence_type=@occurrence_type, event_times=@event_times, lecturer_role=@lecturer_role, session_delivery_methods=@session_delivery_methods, repeat_fees=@repeat_fees
     WHERE id = @id
   `).run({
     id,
+    session_delivery_methods: JSON.stringify(methods),
+    repeat_fees: JSON.stringify(repeatFees),
     occurrence_type: merged.occurrence_type,
     event_times: JSON.stringify(times),
     lecturer_role: merged.lecturer_role,
@@ -259,6 +279,10 @@ export function deleteSeminar(id: number): boolean {
   const db = getDb();
   const result = db.prepare('DELETE FROM seminars WHERE id = ?').run(id);
   return result.changes > 0;
+}
+
+function validateFees(input: Pick<SeminarInput,'fee_dental_hygienist'|'fee_dentist'|'fee_other'>) {
+  for(const fee of [input.fee_dental_hygienist,input.fee_dentist,input.fee_other]) if(!Number.isSafeInteger(fee)||fee<0) throw new TaskError('参加費は0円以上の整数で入力してください');
 }
 
 function validateLecturerRole(value: unknown) {
