@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSeminarById, updateSeminar, deleteSeminar } from '@/lib/db';
+import { getSeminarById, updateSeminar, deleteSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
-import { requireMember } from '@/lib/auth-server';
+import { currentUser, requireMember } from '@/lib/auth-server';
+import { createEventRegistrationStore } from '@/lib/event-registration';
 import { TaskError } from '@/types/task';
 
 type Params = { params: Promise<{ id: string }> };
@@ -31,7 +32,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'イベント種別が不正です' }, { status: 400 });
     }
     if ('delivery_method' in body && !isDeliveryMethod(body.delivery_method)) throw new TaskError('開催方法が不正です');
-    const updated = updateSeminar(Number(id), body);
+    const actor=await currentUser(); if(!actor)throw new TaskError('ログインが必要です',401);
+    const {registration,...fields}=body;
+    const updated = createEventRegistrationStore(getDb()).save(()=>{
+      const event=updateSeminar(Number(id),fields);
+      if(!event)throw new TaskError('見つかりません',404);
+      return event;
+    },registration,actor.id);
     if (!updated) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
     return NextResponse.json(updated);
   } catch (error) {

@@ -10,6 +10,9 @@ import VenuePicker from '@/components/VenuePicker';
 import SocietyMemberPicker from '@/components/SocietyMemberPicker';
 import { emptyRepeatFees, parseRepeatFees,parseSessionMethods } from '@/types/event-options';
 import type { SessionMethods } from '@/types/event-options';
+import StaffRosterBoard from '@/components/StaffRosterBoard';
+import RegistrationLunchFields from '@/components/RegistrationLunchFields';
+import {useEventRegistration} from '@/components/useEventRegistration';
 import EventTimesEditor from '@/components/EventTimesEditor';
 import { OCCURRENCE_LABELS, validateOccurrences, parseEventTimes } from '@/types/event-schedule';
 import type { OccurrenceType, EventTimes } from '@/types/event-schedule';
@@ -22,6 +25,7 @@ type Props = {
 
 export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const router = useRouter();
+  const registration=useEventRegistration(initial?.id);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -97,6 +101,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
       await onSubmit({
         ...(!initial?.id ? { generate_tasks: generateTasks && validDates.length>0, ...(generateTasks && baseDate ? { task_base_date: baseDate } : {}) } : {}),
+        registration: registration.payload(validDates),
         event_type: eventType,
         delivery_method: deliveryMethod || methods[validDates[0]],
         occurrence_type: occurrence as OccurrenceType,
@@ -275,6 +280,13 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
       </Section>
 
+      <div className="space-y-3">
+        {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}
+        {registration.error&&<p role="alert" className="text-sm text-red-700">{registration.error}</p>}
+        {!registration.loading&&<button type="button" disabled={saving} onClick={registration.reload} className="text-sm text-sky-800 underline">出欠・昼食を再取得</button>}
+        {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
+      </div>
+
       <Section title="参加費">
         {occurrence==='MULTIPLE'&&<h3 className="font-medium">複数回合計金額</h3>}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -351,7 +363,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="昼食の手配">
-        <p className="text-sm text-slate-600">ベーシックコース・講演会・セミナーのすべてで、保存後に対象・人数・費用・お店を登録できます。</p>
+        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch}/>
         {initial?.id && <Link href={`/seminars/${initial.id}/lunch`} className="inline-block text-sm text-sky-800 underline">昼食の手配を登録・確認する</Link>}
       </Section>
 
@@ -402,7 +414,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </button>
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving||registration.loading}
           className="px-6 py-2.5 rounded-lg bg-sky-700 text-white text-sm font-bold hover:bg-sky-600 disabled:opacity-50 transition-colors"
         >
           {saving ? '保存中...' : submitLabel}

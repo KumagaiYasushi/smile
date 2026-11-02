@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllSeminars, createSeminar } from '@/lib/db';
+import { getAllSeminars, createSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
 import { currentUser, requireMember } from '@/lib/auth-server';
+import { createEventRegistrationStore } from '@/lib/event-registration';
 import { templateStore } from '@/lib/template-server';
 import { TaskError } from '@/types/task';
 import { requireDate } from '@/types/task-template';
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     const baseDate = body.task_base_date === undefined ? undefined : requireDate(body.task_base_date);
     const gathering = body.social_gathering === undefined ? emptySocialGathering() : parseSocialGathering(body.social_gathering);
     const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
-    const seminar = templateStore().createEvent(() => createSeminar({
+    const seminar = createEventRegistrationStore(getDb()).save(()=>templateStore().createEvent(() => createSeminar({
       event_type: body.event_type ?? 'SEMINAR',
       delivery_method: body.delivery_method ?? null,
       occurrence_type: body.occurrence_type,
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       abstract_800_requested: Boolean(body.abstract_800_requested),
       receipt_issued: Boolean(body.receipt_issued),
       notes: body.notes ?? '',
-    }), actor.id, body.generate_tasks ?? true, baseDate);
+    }), actor.id, body.generate_tasks ?? true, baseDate),body.registration,actor.id);
     return NextResponse.json(seminar, { status: 201 });
   } catch (error) {
     if (error instanceof TaskError) return NextResponse.json({ error: error.message }, { status: error.status });

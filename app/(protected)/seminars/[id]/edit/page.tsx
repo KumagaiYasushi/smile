@@ -3,8 +3,9 @@
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import SeminarForm from '@/components/SeminarForm';
-import { Seminar, SeminarInput } from '@/types/seminar';
+import { Seminar, SeminarSubmission } from '@/types/seminar';
 import Link from 'next/link';
+import {apiJson} from '@/lib/client-api';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -13,29 +14,23 @@ export default function EditSeminarPage({ params }: Props) {
   const router = useRouter();
   const [seminar, setSeminar] = useState<Seminar | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error,setError]=useState('');
 
   useEffect(() => {
-    fetch(`/api/seminars/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setSeminar(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const controller=new AbortController();
+    apiJson(`/api/seminars/${id}`,{signal:controller.signal}).then(data=>{
+      if(!controller.signal.aborted){setSeminar(data);setLoading(false);}
+    }).catch(error=>{if(!controller.signal.aborted){setSeminar(null);setError(error.message);setLoading(false);}});
+    return ()=>controller.abort();
   }, [id]);
 
-  const handleSubmit = async (data: SeminarInput) => {
-    const res = await fetch(`/api/seminars/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error((await res.json()).error ?? '保存失敗');
+  const handleSubmit = async (data: SeminarSubmission) => {
+    await apiJson(`/api/seminars/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     router.push(`/seminars/${id}`);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-slate-400">読み込み中...</div>;
-  if (!seminar) return <div className="text-center py-16 text-slate-500">セミナーが見つかりません</div>;
+  if (loading || (seminar && seminar.id!==Number(id))) return <div className="flex items-center justify-center h-64 text-slate-400">読み込み中...</div>;
+  if (!seminar) return <div className="text-center py-16 text-slate-500">{error||'セミナーが見つかりません'}</div>;
 
   return (
     <div>
@@ -47,7 +42,7 @@ export default function EditSeminarPage({ params }: Props) {
         <p className="text-slate-500 text-sm mt-1">{seminar.name}</p>
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8">
-        <SeminarForm initial={seminar} onSubmit={handleSubmit} submitLabel="変更を保存" />
+        <SeminarForm key={seminar.id} initial={seminar} onSubmit={handleSubmit} submitLabel="変更を保存" />
       </div>
     </div>
   );

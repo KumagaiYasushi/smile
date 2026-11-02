@@ -19,3 +19,5 @@
 各回の開催方法・研究会名簿・再受講料金と登録時の案内は [追加設定](docs/session-methods-and-directory.md) を参照してください。
 
 イベントごとの名簿からラジオボタンで出欠を選ぶ操作と配色は [名簿による出欠登録](docs/staff-roster.md) を参照してください。
+
+登録・編集画面で出欠と昼食を一緒に入力する操作は [イベント登録時の出欠・昼食](docs/event-registration-extras.md) を参照してください。
