@@ -1,10 +1,12 @@
+import {parseSocialAttendance} from './social-attendance.ts';
+import type {SocialAttendee} from './social-attendance.ts';
 import { TaskError } from './task.ts';
 
 export const SOCIAL_STATUS_LABELS = { UNDECIDED: '未定', HELD: '開催する', NOT_HELD: '開催しない' } as const;
 export type SocialStatus = keyof typeof SOCIAL_STATUS_LABELS;
 export const SOCIAL_TIMING_LABELS={BEFORE:'事前',ON_DAY:'開催日',AFTER:'終了後'} as const;
 export type SocialTiming=keyof typeof SOCIAL_TIMING_LABELS;
-export type SocialPlan={id:string;timing:SocialTiming;start_at:string|null;end_at:string|null;venue:string;fee:number|null;budget:number|null;participants:number|null};
+export type SocialPlan={id:string;timing:SocialTiming;start_at:string|null;end_at:string|null;venue:string;fee:number|null;budget:number|null;participants:number|null;attendees?:SocialAttendee[]};
 export type SocialGathering = {
   status: SocialStatus;
   start_at: string | null;
@@ -64,13 +66,13 @@ export function parseSocialGathering(value:unknown):SocialGathering {
   const plans:SocialPlan[]=gatherings.map(value=>{
     if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('懇親会の入力形式が不正です');
     const body=value as Record<string,unknown>;
-    if(Object.keys(body).some(key=>!['id','timing','start_at','end_at','venue','fee','budget','participants'].includes(key)))throw new TaskError('懇親会に変更できない項目が含まれています');
+    if(Object.keys(body).some(key=>!['id','timing','start_at','end_at','venue','fee','budget','participants','attendees'].includes(key)))throw new TaskError('懇親会に変更できない項目が含まれています');
     if(typeof body.id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(body.id)||ids.has(body.id))throw new TaskError('懇親会のIDが不正または重複しています');
     ids.add(body.id);
     if(typeof body.timing!=='string'||!Object.hasOwn(SOCIAL_TIMING_LABELS,body.timing))throw new TaskError('懇親会の開催区分が不正です');
     for(const key of ['budget','participants'])if(body[key]!==null&&(typeof body[key]!=='number'||!Number.isSafeInteger(body[key])||(body[key] as number)<0))throw new TaskError('懇親会の予算・参加人数は0以上の整数、または未定で入力してください');
     const fields=parseSingleGathering({status:'HELD',start_at:body.start_at,end_at:body.end_at,venue:body.venue,fee:body.fee});
-    return {id:body.id,timing:body.timing as SocialTiming,start_at:fields.start_at,end_at:fields.end_at,venue:fields.venue,fee:fields.fee,budget:body.budget as number|null,participants:body.participants as number|null};
+    return {id:body.id,timing:body.timing as SocialTiming,start_at:fields.start_at,end_at:fields.end_at,venue:fields.venue,fee:fields.fee,budget:body.budget as number|null,participants:body.participants as number|null,...(body.attendees===undefined?{}:{attendees:parseSocialAttendance(body.attendees)})};
   });
   if(timings.some(t=>!plans.some(p=>p.timing===t))||(base.status==='HELD'&&!timings.length))throw new TaskError('開催する懇親会の区分と内容を登録してください');
   return withSocialPlans(base,timings as SocialTiming[],plans);

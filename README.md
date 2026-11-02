@@ -27,3 +27,5 @@
 打ち合わせの日程・出欠、HOMEの日程一覧、外来講師のお車代・謝礼は [打ち合わせ・HOME](docs/meetings-home.md) を参照してください。
 
 研究会カレンダーの表示と、WEBページ管理者向け開催要項PDFの保存は [カレンダー・開催要項PDF](docs/calendar-outline.md) を参照してください。
+
+入力エラーの赤表示は [入力エラーの表示](docs/form-validation.md)、懇親会の名簿出欠は [懇親会](docs/social-gathering.md) を参照してください。

@@ -24,6 +24,7 @@ import { smokeExternalLunch } from './smoke-external-lunch.mjs';
 import { smokeEventDetails } from './smoke-event-details.mjs';
 import { smokeMeetingsHome } from './smoke-meetings-home.mjs';
 import { smokeEventOutline } from './smoke-event-outline.mjs';
+import {smokeSocialAttendance} from './smoke-social-attendance.mjs';
 import { smokeStandardTasks } from './smoke-standard-tasks.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
@@ -136,6 +137,7 @@ try {
   await smokeMeetingsHome(member);
   await smokeEventOutline(member);
   await smokeStandardTasks(member,db);
+  await smokeSocialAttendance(member);
   const seminar = await (await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空認証検証' }, 201)).json();
   const participant = await (await member.request(`/api/seminars/${seminar.id}/participants`, 'POST', { name: '架空参加者' }, 201)).json();
   const correct = `/api/seminars/${seminar.id}/participants/${participant.id}`;

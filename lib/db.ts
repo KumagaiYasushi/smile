@@ -1,3 +1,4 @@
+import {resolveSocialAttendance} from './social-attendance.ts';
 import {allowOtherEvents} from './event-type-migration.ts';
 import {emptyExternalPayment,parseExternalPayment} from '../types/external-payment.ts';
 import {allAudienceRoles,parseAudienceRoles,audienceText} from '../types/audience.ts';
@@ -223,7 +224,7 @@ export function createSeminar(input: SeminarInput): Seminar {
     lecturer_role: input.lecturer_role ?? null,
     delivery_method: input.delivery_method ?? null,
     venue_id: validateVenueLink(db, input.venue_id === undefined ? null : input.venue_id),
-    social_gathering: JSON.stringify(parseSocialGathering(input.social_gathering === undefined ? emptySocialGathering() : input.social_gathering)),
+    social_gathering: JSON.stringify(resolveSocialAttendance(db,parseSocialGathering(input.social_gathering === undefined ? emptySocialGathering() : input.social_gathering),external)),
     dates: JSON.stringify(input.dates),
     assistant_members: JSON.stringify(input.assistant_members),
     lecturer_invitation_sent: input.lecturer_invitation_sent ? 1 : 0,
@@ -251,6 +252,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
     ...parseSessionMethods(input.session_delivery_methods,dates),
   };
   const repeatFees=input.repeat_fees===undefined?current.repeat_fees:parseRepeatFees(input.repeat_fees);
+  const external=input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer);
   const times = input.event_times === undefined ? current.event_times : {
     ...Object.fromEntries(Object.entries(current.event_times).filter(([date]) => !dates.includes(date))),
     ...parseEventTimes(input.event_times, dates),
@@ -270,14 +272,14 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
     id,
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
-    external_lecturer:JSON.stringify(input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer)),
+    external_lecturer:JSON.stringify(external),
     external_payment:JSON.stringify(input.external_payment===undefined?current.external_payment:parseExternalPayment(input.external_payment)),
     occurrence_type: merged.occurrence_type,
     event_times: JSON.stringify(times),
     lecturer_role: merged.lecturer_role,
     event_type: merged.event_type,
     delivery_method: merged.delivery_method,
-    social_gathering: JSON.stringify(input.social_gathering === undefined ? current.social_gathering : mergeSocialGathering(current.social_gathering, input.social_gathering)),
+    social_gathering: JSON.stringify(input.social_gathering === undefined ? current.social_gathering : resolveSocialAttendance(db,mergeSocialGathering(current.social_gathering, input.social_gathering),external,current.social_gathering)),
     name: merged.name,
     dates: JSON.stringify(merged.dates),
     content: merged.content,

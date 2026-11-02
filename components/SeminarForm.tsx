@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useId, isValidElement, cloneElement } from 'react';
+import {flagFieldError,clearFieldError} from '@/components/FormValidationFeedback';
 import { useRouter } from 'next/navigation';
 import { Seminar, SeminarSubmission, EventType, EVENT_TYPE_LABELS, DeliveryMethod, DELIVERY_METHOD_LABELS } from '@/types/seminar';
 import Link from 'next/link';
@@ -78,11 +79,19 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const form=e.currentTarget as HTMLFormElement;
-    if(!form.checkValidity()) {
+    form.querySelectorAll<HTMLElement>('[data-custom-validation],fieldset[data-validation-error]').forEach(clearFieldError);
+    if(!name.trim())flagFieldError(form.querySelector('[data-event-name]'),'セミナー名を入力してください。');
+    const dateFields=[...form.querySelectorAll<HTMLInputElement>('[data-event-date]')];
+    for(const field of dateFields)if(field.value&&dateFields.filter(p=>p.value===field.value).length>1)flagFieldError(field,'開催日が重複しています。別の日付を指定してください。');
+    if(occurrence==='SINGLE'&&validDates.length>1)flagFieldError(form.querySelector('[data-occurrence]'),'単回では開催日を1日にしてください。複数日なら複数回を選択してください。');
+    const audienceInvalid=!keepLegacyAudience&&audienceRoles.length===0;
+    if(audienceInvalid)flagFieldError(form.querySelector('[data-audience]'),'主な参加対象を1つ以上選択してください。');
+    if(!form.checkValidity()||audienceInvalid) {
       const invalid=form.querySelector<HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement>('input:invalid,select:invalid,textarea:invalid');
       const label=invalid?.getAttribute('aria-label')??invalid?.labels?.[0]?.textContent?.trim()??'入力項目';
       setError(`「${label}」を確認してください。${invalid?.validity.valueMissing?'入力または選択してください。':'入力形式・金額・時刻の範囲を確認してください。'}`);
-      invalid?.reportValidity();
+      if(audienceInvalid&&!invalid)setError('主な参加対象を1つ以上選択してください。');
+      invalid?.focus();invalid?.reportValidity();
       return;
     }
     if (!name.trim()) {
@@ -92,6 +101,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
     setSaving(true);
     setError('');
     try {
+      let gathering:SocialGathering;
+      try{gathering=parseSocialGathering(social);}catch(error){flagFieldError(form.querySelector('[data-social]'),error instanceof Error?error.message:'懇親会の入力内容を確認してください。');throw error;}
       validateOccurrences(occurrence, validDates);
       const methods=parseSessionMethods(Object.fromEntries(validDates.map(date=>[date,sessionMethods[date]])),validDates);
       const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
@@ -107,7 +118,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         repeat_fees: repeat,
         event_times: times,
         lecturer_role: lecturerRole==='EXTERNAL_LECTURER'?null:lecturerRole ? lecturerRole as 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' : null,
-        social_gathering: parseSocialGathering(social),
+        social_gathering: gathering,
         name: name.trim(),
         dates: dates.filter((d) => d.trim()),
         content,
@@ -155,6 +166,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
           <input
             type="text"
             required
+            data-event-name
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="例：歯周基本治療セミナー 第1回"
@@ -163,7 +175,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
 
         <Field label="開催回数" required>
-          <select required value={occurrence} onChange={e => setOccurrence(e.target.value as OccurrenceType | '')} className={inputClass}>
+          <select required data-occurrence value={occurrence} onChange={e => setOccurrence(e.target.value as OccurrenceType | '')} className={inputClass}>
             <option value="" disabled>選択してください</option>
             {Object.entries(OCCURRENCE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
@@ -177,7 +189,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             {dates.map((d, i) => (
               <div key={i} className="flex gap-2 items-center">
                 <input
-                  type="date"
+                  data-event-date type="date"
                   aria-label={`開催日 ${i + 1}`}
                   value={d}
                   onChange={(e) => updateDate(i, e.target.value)}
@@ -279,7 +291,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </div>
 
         {occurrence==='MULTIPLE'&&<fieldset className="space-y-3"><legend className="mb-2 font-medium">単回金額（再受講用）</legend><p className="text-xs text-slate-500">1回あたりの金額です。空欄は未設定、0円は無料です。</p><div className="grid gap-4 sm:grid-cols-3">{([['dental_hygienist','歯科衛生士'],['dentist','歯科医師'],['other','その他']] as const).map(([role,label])=><label key={role} className="block text-sm">{label}・再受講1回（円）<input aria-label={`${label}・再受講1回（円）`} type="number" min="0" step="1" value={repeatFees[role]} onChange={e=>setRepeatFees({...repeatFees,[role]:e.target.value})} className={inputClass}/></label>)}</div></fieldset>}
-        <fieldset className="space-y-2"><legend className="text-sm font-medium">主な参加対象（複数選択可）</legend><div className="flex flex-wrap gap-4">{Object.entries(AUDIENCE_LABELS).map(([role,label])=><label key={role} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={audienceRoles.includes(role as AudienceRole)} onChange={e=>{setAudienceChanged(true);setAudienceRoles(current=>e.target.checked?[...current,role as AudienceRole]:current.filter(r=>r!==role));}}/>{label}</label>)}</div>
+        <fieldset data-audience className="space-y-2"><legend className="text-sm font-medium">主な参加対象（複数選択可）</legend><div className="flex flex-wrap gap-4">{Object.entries(AUDIENCE_LABELS).map(([role,label])=><label key={role} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={audienceRoles.includes(role as AudienceRole)} onChange={e=>{setAudienceChanged(true);setAudienceRoles(current=>e.target.checked?[...current,role as AudienceRole]:current.filter(r=>r!==role));}}/>{label}</label>)}</div>
           {keepLegacyAudience&&<p className="text-xs text-slate-500">以前の参加対象：{initial?.target_participants}。選択を変更するまで以前の記録を保持します。</p>}
         </fieldset>
       </Section>
@@ -315,7 +327,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="懇親会">
-        <SocialGatheringEditor value={social} onChange={setSocial}/>
+        <fieldset data-social aria-label="懇親会の入力"><SocialGatheringEditor value={social} onChange={setSocial} members={meetings.members} external={external}/></fieldset>
       </Section>
 
       <Section title="メモ">
