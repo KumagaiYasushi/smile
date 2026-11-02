@@ -26,7 +26,7 @@ test('multi-target orders derive one total and retain separate counts, zero and 
   }finally{db.close();}
 });
 test('lunch defaults count only attending people on the selected date and separate participants',()=>{
-  const people=[['SOCIETY_LECTURER','ATTENDING','ABSENT'],['LECTURER','ATTENDING','UNANSWERED'],['SOCIETY_SUPPORT','ATTENDING','ATTENDING'],['SUPPORT','ABSENT','ATTENDING'],['SOCIETY_SUPPORT','TENTATIVE','UNANSWERED'],['EXTERNAL_LECTURER','ATTENDING','ABSENT']].map(([role,a,b])=>({role,responses:{[dates[0]]:a,[dates[1]]:b}}));
+  const people=[['SOCIETY_LECTURER','AM_ONLY','ABSENT'],['LECTURER','ATTENDING','UNANSWERED'],['SOCIETY_SUPPORT','PM_ONLY','ATTENDING'],['SUPPORT','ABSENT','ATTENDING'],['SOCIETY_SUPPORT','TENTATIVE','UNANSWERED'],['EXTERNAL_LECTURER','ATTENDING','ABSENT']].map(([role,a,b])=>({role,responses:{[dates[0]]:a,[dates[1]]:b}}));
   assert.deepEqual(countLunchAttendance(people,dates[0],12),{LECTURER:2,SUPPORT:1,EXTERNAL_LECTURER:1,PARTICIPANT:12,OTHER:0});
   assert.deepEqual(countLunchAttendance(people,dates[1],12),{LECTURER:0,SUPPORT:2,EXTERNAL_LECTURER:0,PARTICIPANT:12,OTHER:0});
   assert.equal(defaultLunch(countLunchAttendance([],null,0),null).quantity,0);

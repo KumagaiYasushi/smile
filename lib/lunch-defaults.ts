@@ -1,3 +1,4 @@
+import {isStaffAttending} from '../types/staff-attendance.ts';
 import type Database from 'better-sqlite3';
 import {createStaffAttendanceStore} from './staff-attendance.ts';
 import {countLunchAttendance} from '../types/lunch-defaults.ts';
@@ -12,7 +13,7 @@ export function getLunchDefaults(db:Database.Database,seminarId:number):Record<s
   return Object.fromEntries([...new Set([...staff.dates,''])].map(date=>{
     const counts=countLunchAttendance(staff.people,date||null,participants);
     const person=staff.people.find(p=>p.role==='EXTERNAL_LECTURER'&&p.name===external.name);
-    counts.EXTERNAL_LECTURER=external.status==='YES'&&external.name?(person?.responses[date]!==undefined?(person.responses[date]==='ATTENDING'?1:0):1):0;
+    counts.EXTERNAL_LECTURER=external.status==='YES'&&external.name?(person?.responses[date]!==undefined?(isStaffAttending(person.responses[date])?1:0):1):0;
     return [date,counts];
   }));
 }

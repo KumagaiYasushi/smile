@@ -15,6 +15,16 @@ function fixture() {
   return {db,store:createStaffRosterStore(db),staff:createStaffAttendanceStore(db),directory:createSocietyMemberStore(db)};
 }
 const input=(row,extra={})=>({member_id:row.member_id,member_version:row.member_version,version:row.version,date:dates[0],response:'ATTENDING',schedule:dates,...extra});
+test('morning and afternoon attendance persist per date with green rows and keep other answers',()=>{
+  const {db,store,staff}=fixture();try{
+    const row=store.list(1).rows[0];
+    let saved=store.setResponse(1,input(row,{response:'AM_ONLY'}),1);
+    saved=store.setResponse(1,input(saved.roster.rows[0],{date:dates[1],response:'PM_ONLY'}),1);
+    assert.deepEqual(staff.get(1,saved.person.id).responses,{[dates[0]]:'AM_ONLY',[dates[1]]:'PM_ONLY'});
+    assert.match(rosterColor('AM_ONLY'),/text-green-700/);assert.match(rosterColor('PM_ONLY'),/text-green-700/);
+    assert.deepEqual(staff.history(1)[0].after.responses,saved.person.responses);
+  }finally{db.close();}
+});
 test('full directory starts unregistered without creating attendance; colors have green, gray and black states',()=>{
   const {db,store,staff}=fixture();try{
     const roster=store.list(1);assert.equal(roster.rows.length,10);assert.ok(roster.rows.every(p=>p.version===0&&p.person_id===null));

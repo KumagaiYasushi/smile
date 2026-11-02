@@ -39,7 +39,7 @@ export function createStaffRosterStore(db: Database.Database) {
         if (body.member_version !== row.member_version || body.version !== row.version) throw new TaskError('名簿または出欠が変更されています。最新情報を取得してください',409);
         if (!Array.isArray(body.schedule) || JSON.stringify(body.schedule) !== JSON.stringify(roster.dates)) throw new TaskError('開催日が変更されています。最新情報を取得してください',409);
         if (typeof body.date !== 'string' || !attendanceDateKeys(roster.dates).includes(body.date)) throw new TaskError('現在の開催日から選択してください');
-        if (typeof body.response !== 'string' || !Object.hasOwn(ROSTER_RESPONSE_LABELS,body.response)) throw new TaskError('出席・欠席・未登録から選択してください');
+        if (typeof body.response !== 'string' || !Object.hasOwn(ROSTER_RESPONSE_LABELS,body.response)) throw new TaskError('出席・午前のみ・午後のみ・欠席・未登録から選択してください');
         const responses = Object.fromEntries(attendanceDateKeys(roster.dates).map(date => [date,row.responses[date] ?? 'UNANSWERED']));
         responses[body.date] = body.response as RosterResponse;
         const input = { name:row.name,role:row.role,schedule:roster.dates,responses };

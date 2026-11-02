@@ -21,6 +21,7 @@ import { smokeSettingsReceipts } from './smoke-settings-receipts.mjs';
 import { smokeSessionDirectory } from './smoke-session-directory.mjs';
 import { smokeEventRegistration } from './smoke-event-registration.mjs';
 import { smokeExternalLunch } from './smoke-external-lunch.mjs';
+import { smokeEventDetails } from './smoke-event-details.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
 const directory = mkdtempSync(join(tmpdir(), 'smile-auth-smoke-'));
@@ -128,6 +129,7 @@ try {
   assert.equal(db.prepare('SELECT count(*) n FROM event_schedule_state').get().n, 0);
   await smokeEventRegistration(member);
   await smokeExternalLunch(member);
+  await smokeEventDetails(member);
   const seminar = await (await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空認証検証' }, 201)).json();
   const participant = await (await member.request(`/api/seminars/${seminar.id}/participants`, 'POST', { name: '架空参加者' }, 201)).json();
   const correct = `/api/seminars/${seminar.id}/participants/${participant.id}`;

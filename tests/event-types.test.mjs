@@ -100,6 +100,7 @@ test('legacy database migrates without losing IDs, dates, timestamps, checklist 
     assert.equal(first.getSeminarById(42).occurrence_type, null);
     assert.deepEqual(first.getSeminarById(42).event_times, {});
     assert.equal(first.getSeminarById(42).lecturer_role, null);
+    assert.equal(first.getSeminarById(42).audience_roles,null);
     assert.deepEqual(first.getSeminarById(42).external_lecturer, {status:'UNDECIDED',id:null,name:'',facility:''});
     assert.deepEqual(first.getSeminarById(42).social_gathering, { status: 'UNDECIDED', start_at: null, end_at: null, venue: '', fee: null });
     assert.equal(first.getSeminarById(42).photo_received, true);

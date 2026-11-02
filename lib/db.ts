@@ -1,3 +1,4 @@
+import {allAudienceRoles,parseAudienceRoles,audienceText} from '../types/audience.ts';
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
@@ -113,6 +114,7 @@ function initSchema(db: Database.Database) {
     if (!columns.some(column => column.name === 'event_times')) db.exec("ALTER TABLE seminars ADD COLUMN event_times TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(event_times))");
     if (!columns.some(column => column.name === 'session_delivery_methods')) db.exec("ALTER TABLE seminars ADD COLUMN session_delivery_methods TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(session_delivery_methods))");
     if (!columns.some(column => column.name === 'repeat_fees')) db.exec("ALTER TABLE seminars ADD COLUMN repeat_fees TEXT NOT NULL DEFAULT '{\"dental_hygienist\":null,\"dentist\":null,\"other\":null}' CHECK(json_valid(repeat_fees))");
+    if (!columns.some(column => column.name === 'audience_roles')) db.exec("ALTER TABLE seminars ADD COLUMN audience_roles TEXT CHECK(audience_roles IS NULL OR json_valid(audience_roles))");
     if (!columns.some(column => column.name === 'external_lecturer')) db.exec("ALTER TABLE seminars ADD COLUMN external_lecturer TEXT NOT NULL DEFAULT '{\"status\":\"UNDECIDED\",\"id\":null,\"name\":\"\",\"facility\":\"\"}' CHECK(json_valid(external_lecturer))");
     if (!columns.some(column => column.name === 'lecturer_role')) db.exec("ALTER TABLE seminars ADD COLUMN lecturer_role TEXT CHECK(lecturer_role IN ('EXTERNAL_LECTURER','SOCIETY_LECTURER'))");
   }).immediate();
@@ -128,8 +130,9 @@ function initSchema(db: Database.Database) {
 
 // ─── Seminar ─────────────────────────────────────────────────────────────────
 
-type SeminarRow = Omit<Seminar, 'external_lecturer' | 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+type SeminarRow = Omit<Seminar, 'audience_roles' | 'external_lecturer' | 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
   external_lecturer:string;
+  audience_roles:string|null;
   session_delivery_methods: string;
   repeat_fees: string;
   event_times: string;
@@ -147,6 +150,7 @@ function rowToSeminar(row: SeminarRow): Seminar {
   return {
     ...row,
     external_lecturer:JSON.parse(row.external_lecturer),
+    audience_roles:row.audience_roles===null?null:JSON.parse(row.audience_roles),
     event_times: JSON.parse(row.event_times),
     session_delivery_methods: JSON.parse(row.session_delivery_methods),
     repeat_fees: JSON.parse(row.repeat_fees),
@@ -175,6 +179,7 @@ export function getSeminarById(id: number): Seminar | null {
 
 export function createSeminar(input: SeminarInput): Seminar {
   const db = getDb();
+  if(input.target_participants!==undefined&&typeof input.target_participants!=='string')throw new TaskError('参加対象の入力形式が不正です');
   const dates = eventDates(input.dates);
   const occurrence = validateOccurrences(input.occurrence_type, dates);
   const times = parseEventTimes(input.event_times === undefined ? {} : input.event_times, dates);
@@ -182,17 +187,18 @@ export function createSeminar(input: SeminarInput): Seminar {
   validateFees(input);
   const methods=parseSessionMethods(input.session_delivery_methods===undefined?{}:input.session_delivery_methods,dates);
   const repeatFees=parseRepeatFees(input.repeat_fees===undefined?emptyRepeatFees():input.repeat_fees);
+  const audience=input.audience_roles===undefined?(input.target_participants?.trim()?null:allAudienceRoles()):parseAudienceRoles(input.audience_roles);
   const external=input.external_lecturer===undefined?emptyExternal():resolveExternalSelection(db,input.external_lecturer);
   const stmt = db.prepare(`
     INSERT INTO seminars (
       event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
-      fee_dental_hygienist, fee_dentist, fee_other, target_participants,
+      fee_dental_hygienist, fee_dentist, fee_other, target_participants, audience_roles,
       venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role, session_delivery_methods, repeat_fees, external_lecturer,
       lecturer_invitation_sent, photo_received, abstract_300_requested,
       abstract_800_requested, receipt_issued, notes
     ) VALUES (
       @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
-      @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants,
+      @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants, @audience_roles,
       @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role, @session_delivery_methods, @repeat_fees, @external_lecturer,
       @lecturer_invitation_sent, @photo_received, @abstract_300_requested,
       @abstract_800_requested, @receipt_issued, @notes
@@ -200,6 +206,8 @@ export function createSeminar(input: SeminarInput): Seminar {
   `);
   const result = stmt.run({
     ...input,
+    audience_roles:audience===null?null:JSON.stringify(audience),
+    target_participants:audience===null?input.target_participants:audienceText(audience),
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
     external_lecturer:JSON.stringify(external),
@@ -226,6 +234,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
   if (!current) return null;
 
   const merged = { ...current, ...input };
+  if(input.target_participants!==undefined&&typeof input.target_participants!=='string')throw new TaskError('参加対象の入力形式が不正です');
   const dates = eventDates(merged.dates);
   if (input.occurrence_type !== undefined || input.dates !== undefined) validateOccurrences(merged.occurrence_type, dates);
   validateLecturerRole(merged.lecturer_role);
@@ -244,7 +253,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
       event_type = @event_type, delivery_method = @delivery_method, social_gathering = @social_gathering, name = @name, dates = @dates, content = @content,
       lecturer_name = @lecturer_name, assistant_members = @assistant_members,
       fee_dental_hygienist = @fee_dental_hygienist, fee_dentist = @fee_dentist,
-      fee_other = @fee_other, target_participants = @target_participants,
+      fee_other = @fee_other, target_participants = @target_participants, audience_roles = @audience_roles,
       venue = @venue, venue_id = @venue_id, venue_fee = @venue_fee, sns_announcement = @sns_announcement,
       lecturer_invitation_sent = @lecturer_invitation_sent, photo_received = @photo_received,
       abstract_300_requested = @abstract_300_requested, abstract_800_requested = @abstract_800_requested,
@@ -269,7 +278,8 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
     fee_dental_hygienist: merged.fee_dental_hygienist,
     fee_dentist: merged.fee_dentist,
     fee_other: merged.fee_other,
-    target_participants: merged.target_participants,
+    audience_roles:input.audience_roles!==undefined?JSON.stringify(parseAudienceRoles(input.audience_roles)):input.target_participants!==undefined?null:current.audience_roles===null?null:JSON.stringify(current.audience_roles),
+    target_participants:input.audience_roles!==undefined?audienceText(parseAudienceRoles(input.audience_roles)):merged.target_participants,
     venue: merged.venue,
     venue_id: input.venue_id === undefined ? current.venue_id : validateVenueLink(db, input.venue_id, current.venue_id),
     venue_fee: merged.venue_fee,

@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       fee_dental_hygienist: Number(body.fee_dental_hygienist) || 0,
       fee_dentist: Number(body.fee_dentist) || 0,
       fee_other: Number(body.fee_other) || 0,
+      audience_roles:body.audience_roles,
       target_participants: body.target_participants ?? '',
       venue: body.venue ?? '',
       venue_id: body.venue_id === undefined ? null : body.venue_id,

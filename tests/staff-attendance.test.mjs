@@ -42,7 +42,7 @@ test('staff plans store separate dates and roles, can be revised, and never set 
     let person = store.create(42, input({ name: ' 架空講師 ' }), 1);
     assert.equal(person.name, '架空講師');
     assert.deepEqual(person.responses, responses);
-    for (const status of ['UNANSWERED', 'TENTATIVE', 'ATTENDING', 'ABSENT']) {
+    for (const status of ['UNANSWERED', 'TENTATIVE', 'ATTENDING', 'AM_ONLY', 'PM_ONLY', 'ABSENT']) {
       person = store.update(42, person.id, { ...input({ responses: { ...responses, [dates[0]]: status }, role: 'SOCIETY_SUPPORT' }), version: person.version }, 2);
       assert.equal(person.responses[dates[0]], status);
       assert.equal(person.responses[dates[1]], 'ABSENT');
@@ -54,7 +54,7 @@ test('staff plans store separate dates and roles, can be revised, and never set 
     assert.equal(db.prepare('SELECT lecturer_name FROM seminars WHERE id=42').get().lecturer_name, '架空講師');
     const history = store.history(42);
     assert.equal(history[0].actor_id, 2);
-    assert.equal(history[0].before.responses[dates[0]], 'ATTENDING');
+    assert.equal(history[0].before.responses[dates[0]], 'PM_ONLY');
     assert.equal(history[0].after.responses[dates[0]], 'ABSENT');
     assert.ok(!JSON.stringify(history).includes('架空講師'));
     store.remove(42, person.id, { version: person.version }, 1);

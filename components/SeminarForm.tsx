@@ -4,8 +4,11 @@ import { useState, useId, isValidElement, cloneElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { Seminar, SeminarSubmission, EventType, EVENT_TYPE_LABELS, DeliveryMethod, DELIVERY_METHOD_LABELS } from '@/types/seminar';
 import Link from 'next/link';
-import { emptySocialGathering, parseSocialGathering, SOCIAL_STATUS_LABELS } from '@/types/social-gathering';
-import type { SocialGathering, SocialStatus } from '@/types/social-gathering';
+import { emptySocialGathering, parseSocialGathering } from '@/types/social-gathering';
+import type { SocialGathering } from '@/types/social-gathering';
+import SocialGatheringEditor from '@/components/SocialGatheringEditor';
+import {AUDIENCE_LABELS,allAudienceRoles,audienceFromLegacy,audienceText,parseAudienceRoles} from '@/types/audience';
+import type {AudienceRole} from '@/types/audience';
 import VenuePicker from '@/components/VenuePicker';
 import SocietyMemberPicker from '@/components/SocietyMemberPicker';
 import { emptyRepeatFees, parseRepeatFees,parseSessionMethods } from '@/types/event-options';
@@ -52,13 +55,14 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [feeDH, setFeeDH] = useState(String(initial?.fee_dental_hygienist ?? ''));
   const [feeDr, setFeeDr] = useState(String(initial?.fee_dentist ?? ''));
   const [feeOther, setFeeOther] = useState(String(initial?.fee_other ?? ''));
-  const [targetParticipants, setTargetParticipants] = useState(initial?.target_participants ?? '');
+  const [audienceRoles,setAudienceRoles]=useState<AudienceRole[]>(()=>initial?.audience_roles??audienceFromLegacy(initial?.target_participants??'')??allAudienceRoles());
+  const [audienceChanged,setAudienceChanged]=useState(false);
+  const keepLegacyAudience=!!initial?.target_participants&&!initial.audience_roles&&!audienceFromLegacy(initial.target_participants)&&!audienceChanged;
   const [venue, setVenue] = useState(initial?.venue ?? '');
   const [venueId, setVenueId] = useState<number | null>(initial?.venue_id ?? null);
   const [venueFee, setVenueFee] = useState(String(initial?.venue_fee ?? ''));
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [social, setSocial] = useState<SocialGathering>(() => initial?.social_gathering ?? emptySocialGathering());
-  const [socialFee, setSocialFee] = useState(String(initial?.social_gathering?.fee ?? ''));
 
   const updateDate = (i: number, value: string) => {
     const next = [...dates];
@@ -107,7 +111,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         repeat_fees: repeat,
         event_times: times,
         lecturer_role: lecturerRole==='EXTERNAL_LECTURER'?null:lecturerRole ? lecturerRole as 'EXTERNAL_LECTURER' | 'SOCIETY_LECTURER' : null,
-        social_gathering: parseSocialGathering({ ...social, fee: socialFee === '' ? null : Number(socialFee) }),
+        social_gathering: parseSocialGathering(social),
         name: name.trim(),
         dates: dates.filter((d) => d.trim()),
         content,
@@ -116,7 +120,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         fee_dental_hygienist: Number(feeDH) || 0,
         fee_dentist: Number(feeDr) || 0,
         fee_other: Number(feeOther) || 0,
-        target_participants: targetParticipants,
+        ...(keepLegacyAudience?{target_participants:initial!.target_participants!}:{audience_roles:parseAudienceRoles(audienceRoles),target_participants:audienceText(audienceRoles)}),
         venue,
         venue_id: venueId,
         venue_fee: Number(venueFee) || 0,
@@ -299,15 +303,9 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </div>
 
         {occurrence==='MULTIPLE'&&<fieldset className="space-y-3"><legend className="mb-2 font-medium">単回金額（再受講用）</legend><p className="text-xs text-slate-500">1回あたりの金額です。空欄は未設定、0円は無料です。</p><div className="grid gap-4 sm:grid-cols-3">{([['dental_hygienist','歯科衛生士'],['dentist','歯科医師'],['other','その他']] as const).map(([role,label])=><label key={role} className="block text-sm">{label}・再受講1回（円）<input aria-label={`${label}・再受講1回（円）`} type="number" min="0" step="1" value={repeatFees[role]} onChange={e=>setRepeatFees({...repeatFees,[role]:e.target.value})} className={inputClass}/></label>)}</div></fieldset>}
-        <Field label="参加対象">
-          <input
-            type="text"
-            value={targetParticipants}
-            onChange={(e) => setTargetParticipants(e.target.value)}
-            placeholder="例：歯科衛生士、歯科医師"
-            className={inputClass}
-          />
-        </Field>
+        <fieldset className="space-y-2"><legend className="text-sm font-medium">主な参加対象（複数選択可）</legend><div className="flex flex-wrap gap-4">{Object.entries(AUDIENCE_LABELS).map(([role,label])=><label key={role} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={audienceRoles.includes(role as AudienceRole)} onChange={e=>{setAudienceChanged(true);setAudienceRoles(current=>e.target.checked?[...current,role as AudienceRole]:current.filter(r=>r!==role));}}/>{label}</label>)}</div>
+          {keepLegacyAudience&&<p className="text-xs text-slate-500">以前の参加対象：{initial?.target_participants}。選択を変更するまで以前の記録を保持します。</p>}
+        </fieldset>
       </Section>
 
       <Section title="会場">
@@ -341,27 +339,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="懇親会">
-        <Field label="懇親会の開催">
-          <select value={social.status} onChange={e => setSocial({ ...social, status: e.target.value as SocialStatus })} className={inputClass}>
-            {Object.entries(SOCIAL_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </Field>
-        <p className="text-sm text-slate-500">日時・場所・参加費が未定でも保存できます。「開催しない」に変更しても入力済みの情報は保持します。</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="懇親会の開始日時（日本時間）">
-            <input type="datetime-local" value={social.start_at ?? ''} onChange={e => setSocial({ ...social, start_at: e.target.value || null })} className={`${inputClass} min-w-0`} />
-          </Field>
-          <Field label="懇親会の終了日時（日本時間）">
-            <input type="datetime-local" value={social.end_at ?? ''} min={social.start_at ?? undefined} onChange={e => setSocial({ ...social, end_at: e.target.value || null })} className={`${inputClass} min-w-0`} />
-          </Field>
-        </div>
-        <Field label="懇親会の場所・住所">
-          <textarea rows={2} maxLength={2000} value={social.venue} onChange={e => setSocial({ ...social, venue: e.target.value })} placeholder="例：〇〇レストラン、住所" className={textareaClass} />
-        </Field>
-        <Field label="懇親会の参加費（1人あたり・円）">
-          <input type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={socialFee} onChange={e => setSocialFee(e.target.value)} className={`${inputClass} max-w-xs`} />
-        </Field>
-        <p className="text-sm text-slate-500">参加費は空欄なら未定、0円なら無料として表示します。</p>
+        <SocialGatheringEditor value={social} onChange={setSocial}/>
       </Section>
 
       <Section title="メモ">

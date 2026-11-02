@@ -7,7 +7,7 @@ import { Seminar, CHECKLIST_ITEMS, EVENT_TYPE_LABELS, deliveryMethodLabel } from
 import { eventDeliveryLabel,eventMethodForDate } from '@/types/event-options';
 import { eventAttendanceText,eventFeeText } from '@/lib/event-presentation';
 import { formatEventDate, OCCURRENCE_LABELS } from '@/types/event-schedule';
-import { SOCIAL_STATUS_LABELS, formatSocialDateTime } from '@/types/social-gathering';
+import SocialGatheringDetails from '@/components/SocialGatheringDetails';
 
 
 function formatCurrency(n: number) {
@@ -210,16 +210,7 @@ export default function SeminarDetailPage({ params }: Props) {
           </Card>
 
           <Card title="懇親会">
-            <dl className="space-y-3">
-              <Row label="開催">{SOCIAL_STATUS_LABELS[seminar.social_gathering.status]}</Row>
-              {seminar.social_gathering.status !== 'NOT_HELD' && <>
-                <Row label="開始日時">{formatSocialDateTime(seminar.social_gathering.start_at)}</Row>
-                <Row label="終了日時">{formatSocialDateTime(seminar.social_gathering.end_at)}</Row>
-                <Row label="場所"><p className="whitespace-pre-wrap break-words">{seminar.social_gathering.venue || '未定'}</p></Row>
-                <Row label="参加費">{seminar.social_gathering.fee === null ? '未定' : seminar.social_gathering.fee === 0 ? '無料（0円）' : `¥${seminar.social_gathering.fee.toLocaleString()}／人`}</Row>
-              </>}
-            </dl>
-            {seminar.social_gathering.status === 'NOT_HELD' && <p className="mt-3 text-sm text-slate-500">入力済みの日時・場所・参加費は編集画面で確認できます。</p>}
+            <SocialGatheringDetails value={seminar.social_gathering}/>
           </Card>
 
           {/* SNS案内文カード */}

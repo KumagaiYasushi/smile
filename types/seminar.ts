@@ -1,3 +1,4 @@
+import type {AudienceRole} from './audience.ts';
 import type {ExternalSelection} from './external-lecturer.ts';
 import type { SessionMethods,RepeatFees } from './event-options.ts';
 import type { EventRegistration } from './event-registration.ts';
@@ -52,6 +53,7 @@ export type Seminar = {
   fee_dentist: number;
   fee_other: number;
   target_participants: string;
+  audience_roles: AudienceRole[] | null;
   venue: string;
   venue_id: number | null;
   venue_fee: number;
@@ -66,7 +68,7 @@ export type Seminar = {
   updated_at: string;
 };
 
-export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at'>;
+export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at' | 'audience_roles'> & {audience_roles?:AudienceRole[]|null};
 export type SeminarSubmission = Omit<SeminarInput,'delivery_method'> & { delivery_method?:DeliveryMethod|null; registration?:EventRegistration };
 
 export const CHECKLIST_ITEMS: { key: keyof Pick<Seminar, 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'>; label: string }[] = [

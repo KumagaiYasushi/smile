@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { apiJson } from '@/lib/client-api';
-import { attendanceDateKeys, attendanceDateLabel, STAFF_ROLE_LABELS } from '@/types/staff-attendance';
+import { isStaffAttending, attendanceDateKeys, attendanceDateLabel, STAFF_ROLE_LABELS } from '@/types/staff-attendance';
 import type { StaffPerson, StaffRole } from '@/types/staff-attendance';
 import { ROSTER_RESPONSE_LABELS, rosterColor } from '@/types/staff-roster';
 import type { RosterResponse, StaffRoster, StaffRosterRow } from '@/types/staff-roster';
@@ -35,7 +35,7 @@ export default function StaffRosterBoard({ eventId, roster, disabled, filter, on
   return <section aria-label="研究会名簿から出欠登録" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
     <h2 className="text-lg font-bold text-black">研究会講師・サポートの出欠登録</h2>
     <p className="text-sm text-slate-600">{onDraftChange?'このイベントに参加できる方の出欠を選択してください。イベントの保存ボタンでまとめて保存します。':'このイベントに参加できる方の出欠を選択してください。選ぶと保存します。'}複数回のイベントは開催日を切り替えて登録します。</p>
-    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm"><span className="font-bold text-green-700">出席：緑</span><span className="text-slate-500">欠席：グレー</span><span className="text-black">未登録：黒</span></p>
+    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm"><span className="font-bold text-green-700">出席（午前・午後のみを含む）：緑</span><span className="text-slate-500">欠席：グレー</span><span className="text-black">未登録：黒</span></p>
     <label className="block max-w-sm text-sm font-medium">出欠を登録する開催日
       <select aria-label="出欠を登録する開催日" disabled={disabled||pending!==null} value={selectedDate} onChange={e=>{setDate(e.target.value);setError('');setMessage('');}} className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2">
         {dates.map(date=><option key={date} value={date}>{attendanceDateLabel(date)}</option>)}
@@ -53,7 +53,7 @@ export default function StaffRosterBoard({ eventId, roster, disabled, filter, on
             <fieldset disabled={disabled||pending!==null} aria-label={`${row.name}の出欠`} className="min-w-0">
               <legend className="mb-3 break-words font-bold">{row.name}</legend>
               <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">{Object.entries(ROSTER_RESPONSE_LABELS).map(([value,label])=><label key={value} className="flex cursor-pointer items-center gap-2 py-1">
-                <input type="radio" name={`attendance-${eventId??'new'}-${row.member_id}-${selectedDate}`} value={value} checked={response===value} onChange={()=>save(row,value as RosterResponse)} className={`h-4 w-4 ${response==='ATTENDING'?'accent-green-700':response==='ABSENT'?'accent-slate-500':'accent-black'}`}/>{label}
+                <input type="radio" name={`attendance-${eventId??'new'}-${row.member_id}-${selectedDate}`} value={value} checked={response===value} onChange={()=>save(row,value as RosterResponse)} className={`h-4 w-4 ${isStaffAttending(response)?'accent-green-700':response==='ABSENT'?'accent-slate-500':'accent-black'}`}/>{label}
               </label>)}</div>
             </fieldset>
             <p className="mt-2 text-xs">{pending===row.member_id?'保存中…':response==='TENTATIVE'?'調整中（未確定）':ROSTER_RESPONSE_LABELS[response]}{!row.active&&'・名簿は利用停止中'}</p>

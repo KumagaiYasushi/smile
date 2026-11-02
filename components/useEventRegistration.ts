@@ -6,6 +6,7 @@ import { parseLunch } from '@/types/lunch';
 import type { LunchData,LunchInput } from '@/types/lunch';
 import {countLunchAttendance} from '@/types/lunch-defaults';
 import type {ExternalSelection} from '@/types/external-lecturer';
+import {isStaffAttending} from '@/types/staff-attendance';
 import type {StaffPerson} from '@/types/staff-attendance';
 import type { SocietyMember } from '@/types/society-member';
 import type { StaffRoster,StaffRosterRow,RosterResponse } from '@/types/staff-roster';
@@ -67,7 +68,7 @@ export function useEventRegistration(eventId?:number) {
     const linked=new Set(roster?.rows.map(row=>row.person_id).filter(id=>id!==null));
     const counts=countLunchAttendance([...(roster?.rows??[]),...otherStaff.filter(p=>!linked.has(p.id))],date,participantCount);
     const registered=otherStaff.find(p=>p.role==='EXTERNAL_LECTURER'&&p.name===external.name);
-    counts.EXTERNAL_LECTURER=external.status==='YES'&&external.name?(registered?.responses[date??'']!==undefined?(registered.responses[date??'']==='ATTENDING'?1:0):1):0;
+    counts.EXTERNAL_LECTURER=external.status==='YES'&&external.name?(registered?.responses[date??'']!==undefined?(isStaffAttending(registered.responses[date??''])?1:0):1):0;
     return counts;
   }
   return {roster,lunch,loading,error,dirty,getLunchCounts,setResponse,addLunch,updateLunch,removeLunch,payload,reload};
