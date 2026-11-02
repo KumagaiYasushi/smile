@@ -1,5 +1,7 @@
 # 歯周基本治療研究会 セミナー管理システム
 
+検証サイトの公開準備は [Renderでの公開手順](docs/render-verification.md) を参照してください。配置ブランチは `codex/verification-preview`、設定ファイルは `render.yaml` です。
+
 開発の現状と順序は [開発計画](docs/development-plan.md)、ログインの初回設定と検証方法は [認証基盤](docs/authentication.md) を参照してください。
 イベント別の手動タスク管理は [タスク・期限管理](docs/tasks.md) を参照してください。
 種別ごとのテンプレートと期限の逆算生成は [タスクテンプレート](docs/task-templates.md) を参照してください。

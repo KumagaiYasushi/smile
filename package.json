@@ -11,10 +11,12 @@
     "test:smoke": "node scripts/smoke-auth.mjs",
     "test:browser": "node scripts/browser-check.mjs",
     "test:verification": "node scripts/check-verification.mjs",
+    "test:hosted": "node scripts/check-hosted-verification.mjs",
     "auth:key": "node scripts/setup-auth-key.mjs",
     "user:create": "node scripts/create-user.mjs",
     "verification:setup": "node scripts/verification.mjs setup",
-    "verification:start": "node scripts/verification.mjs start"
+    "verification:start": "node scripts/verification.mjs start",
+    "verification:hosted": "node scripts/start-hosted-verification.mjs"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",

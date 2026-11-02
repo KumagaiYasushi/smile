@@ -1,0 +1,25 @@
+# Disposable verification service. No paid plan or persistent disk is provisioned.
+services:
+  - type: web
+    name: smile-verification
+    runtime: node
+    repo: https://github.com/KumagaiYasushi/smile
+    branch: codex/verification-preview
+    plan: free
+    autoDeploy: false
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run verification:hosted
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: SMILE_VERIFICATION_DATA_DIR
+        value: /tmp/smile-verification
+      - key: SMILE_VERIFICATION_EPHEMERAL
+        value: "1"
+      - key: SMILE_VERIFICATION_EMAIL
+        sync: false
+      - key: SMILE_VERIFICATION_PASSWORD
+        sync: false
