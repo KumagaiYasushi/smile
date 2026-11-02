@@ -6,11 +6,20 @@ import {createEventRegistrationStore} from '../lib/event-registration.ts';
 import {meetingSubmission} from '../types/meeting.ts';
 import {parseExternalPayment} from '../types/external-payment.ts';
 import {buildHomeRows} from '../types/home.ts';
-function fixture(){const db=new Database(':memory:');db.pragma('foreign_keys=ON');db.exec(`CREATE TABLE seminars(id INTEGER PRIMARY KEY,name TEXT,dates TEXT,lecturer_name TEXT,assistant_members TEXT);INSERT INTO seminars VALUES(1,'架空イベント','[]','','[]'),(2,'別イベント','[]','','[]');CREATE TABLE auth_users(id INTEGER PRIMARY KEY,active INTEGER);INSERT INTO auth_users VALUES(1,1),(2,0)`);const store=createMeetingStore(db),data=store.data(1);const member=data.members[0];const input={title:'事前打ち合わせ',date:'2027-06-01',time:null,method:'ONLINE',attendees:[{member_id:member.id,member_version:member.version,response:'AM_ONLY'}]};return {db,store,input};}
+function fixture(){const db=new Database(':memory:');db.pragma('foreign_keys=ON');db.exec(`CREATE TABLE seminars(id INTEGER PRIMARY KEY,name TEXT,dates TEXT,lecturer_name TEXT,assistant_members TEXT);INSERT INTO seminars VALUES(1,'架空イベント','[]','','[]'),(2,'別イベント','[]','','[]');CREATE TABLE auth_users(id INTEGER PRIMARY KEY,active INTEGER);INSERT INTO auth_users VALUES(1,1),(2,0)`);const store=createMeetingStore(db),data=store.data(1);const member=data.members[0];const input={title:'事前打ち合わせ',date:'2027-06-01',time:null,method:'ONLINE',attendees:[{member_id:member.id,member_version:member.version,response:'ATTENDING'}]};return {db,store,input};}
+test('legacy half-day meeting answers display as attendance; unanswered remains unselected without changing stored records',()=>{
+  const {db,store,input}=fixture();try{
+    const saved=store.apply(1,[{action:'create',data:input}],1).meetings[0];
+    for(const [legacy,expected]of [['AM_ONLY','ATTENDING'],['PM_ONLY','ATTENDING'],['UNANSWERED',null]]){
+      db.prepare('UPDATE event_meetings SET input_json=? WHERE id=?').run(JSON.stringify({...input,attendees:input.attendees.map(p=>({...p,response:legacy}))}),saved.id);
+      assert.equal(store.list(1)[0].attendees[0].response,expected);assert.ok(db.prepare('SELECT input_json FROM event_meetings WHERE id=?').get(saved.id).input_json.includes(legacy));
+    }
+  }finally{db.close();}
+});
 test('meetings keep independent dates/methods/attendance; revisions, scope and directory snapshots protect records',()=>{
   const {db,store,input}=fixture();try{
-    let result=store.apply(1,[{action:'create',data:input},{action:'create',data:{...input,date:'2027-06-08',method:'OTHER',attendees:input.attendees.map(p=>({...p,response:'PM_ONLY'}))}}],1);
-    assert.equal(result.meetings.length,2);assert.equal(result.meetings[0].attendees[0].response,'AM_ONLY');assert.equal(result.meetings[1].attendees[0].response,'PM_ONLY');
+    let result=store.apply(1,[{action:'create',data:input},{action:'create',data:{...input,date:'2027-06-08',method:'OTHER',attendees:input.attendees.map(p=>({...p,response:'ABSENT'}))}}],1);
+    assert.equal(result.meetings.length,2);assert.equal(result.meetings[0].attendees[0].response,'ATTENDING');assert.equal(result.meetings[1].attendees[0].response,'ABSENT');
     let first=result.meetings[0];assert.ok(first.attendees[0].name);
     assert.throws(()=>store.apply(2,[{action:'delete',id:first.id,version:first.version}],1),{status:404});
     result=store.apply(1,[{action:'update',id:first.id,version:first.version,data:{...meetingSubmission(first),time:'10:30'}}],1);
@@ -27,7 +36,7 @@ test('meetings keep independent dates/methods/attendance; revisions, scope and d
 });
 test('invalid inputs, stale batches and audit failures roll back events and every meeting change',()=>{
   const {db,store,input}=fixture();try{
-    for(const patch of [{date:'2027-02-30'},{time:'24:00'},{date:null,time:'10:00'},{method:'HYBRID'},{attendees:[...input.attendees,...input.attendees]},{actor_id:1}])assert.throws(()=>meetingSubmission({...input,...patch}),{status:400});
+    for(const patch of [{date:'2027-02-30'},{time:'24:00'},{date:null,time:'10:00'},{method:'HYBRID'},{attendees:[...input.attendees,...input.attendees]},{actor_id:1},{attendees:input.attendees.map(p=>({...p,response:'AM_ONLY'}))}])assert.throws(()=>meetingSubmission({...input,...patch}),{status:400});
     assert.throws(()=>store.apply(1,[{action:'create',data:input}],2),{status:403});
     const first=store.apply(1,[{action:'create',data:input}],1).meetings[0];
     const batch=[{action:'create',data:input},{action:'delete',id:first.id,version:99}];assert.throws(()=>store.apply(1,batch,1),{status:409});assert.equal(store.list(1).length,1);

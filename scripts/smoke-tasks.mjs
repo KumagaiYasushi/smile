@@ -10,7 +10,7 @@ export async function smokeTasks(client) {
   const endpoint = `/api/seminars/${first.id}/tasks`;
   try {
     await client.request(`/seminars/${first.id}/tasks`);
-    assert.deepEqual((await json(endpoint)).tasks, []);
+    assert.equal((await json(endpoint)).tasks.length,1);
     const { task: created } = await json(endpoint, 'POST', { title: 'Task audit free text marker', description: 'Description marker',
       due_date: '2027-01-01', assignee_id: members[0].id, collaborator_ids: members.map((member) => member.id), important: true }, 201);
     let task = created;
@@ -37,14 +37,14 @@ export async function smokeTasks(client) {
     await client.request(`${endpoint}/${task.id}`, 'PATCH', { description: 'x', version: task.version, actor_id: 1 }, 400);
     await client.request(`${endpoint}/${task.id}`, 'PATCH', { status: 'NOT_STARTED' }, 400);
     await client.request(endpoint, 'POST', { title: 'rejected CSRF' }, 403, { Origin: 'https://untrusted.invalid' });
-    assert.equal((await json(endpoint)).tasks.length, 1);
+    assert.equal((await json(endpoint)).tasks.length, 2);
     task = (await json(`${endpoint}/${task.id}`, 'PATCH', { due_date: null, assignee_id: null, collaborator_ids: [], version: task.version })).task;
     assert.equal(task.due_date, null);
     assert.equal(task.assignee_id, null);
     assert.deepEqual(task.collaborator_ids, []);
     await client.request(`${endpoint}/${task.id}`, 'DELETE', { version: task.version });
     await client.request(`${endpoint}/${task.id}`, 'GET', undefined, 404);
-    assert.deepEqual((await json(endpoint)).tasks, []);
+    assert.equal((await json(endpoint)).tasks.length,1);
     // Parent deletion must not leave task or collaborator rows behind.
     await json(endpoint, 'POST', { title: 'cascade check', collaborator_ids: [members[0].id] }, 201);
     console.log('PASS: authenticated task CRUD, four states, assignment, deadline/history, input validation, stale-version conflicts, event scope and CSRF');

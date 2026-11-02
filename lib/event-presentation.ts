@@ -1,10 +1,11 @@
+import {eventSessionDateText} from '../types/event-session.ts';
 import { deliveryMethodLabel } from '../types/seminar.ts';
 import { eventMethodForDate } from '../types/event-options.ts';
 import { formatEventDate } from '../types/event-schedule.ts';
 import type { Seminar } from '../types/seminar.ts';
-export function eventAttendanceText(event: Pick<Seminar, 'delivery_method' | 'venue'> & Partial<Pick<Seminar,'dates'|'session_delivery_methods'|'event_times'|'external_lecturer'>>) {
+export function eventAttendanceText(event: Pick<Seminar, 'delivery_method' | 'venue'> & Partial<Pick<Seminar,'dates'|'name'|'occurrence_type'|'session_delivery_methods'|'event_times'|'external_lecturer'>>) {
   const perDate=event.dates?.length&&event.dates.some(date=>event.session_delivery_methods?.[date]);
-  const method=perDate?`■ 開催方法\n${event.dates!.map(date=>`${formatEventDate(date,event.event_times)}：${deliveryMethodLabel(eventMethodForDate(event,date))}`).join('\n')}`:`■ 開催方法\n${deliveryMethodLabel(event.delivery_method)}`;
+  const method=perDate?`■ 開催方法\n${[...event.dates!].sort().map(date=>`${event.name?eventSessionDateText({...event,name:event.name,dates:event.dates??[]},date):formatEventDate(date,event.event_times)}：${deliveryMethodLabel(eventMethodForDate(event,date))}`).join('\n')}`:`■ 開催方法\n${deliveryMethodLabel(event.delivery_method)}`;
   const onsite=perDate?event.dates!.some(date=>eventMethodForDate(event,date)!=='ONLINE'):event.delivery_method!=='ONLINE';
   const external=event.external_lecturer?.status==='YES'?`\n\n■ 外来講師\n${event.external_lecturer.name}\n${event.external_lecturer.facility}`:'';
   return (onsite?`${method}\n\n■ 会場\n${event.venue||'（未定）'}`:method)+external;

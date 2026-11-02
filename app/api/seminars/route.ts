@@ -3,6 +3,7 @@ import { getAllSeminars, createSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
 import { currentUser, requireMember } from '@/lib/auth-server';
 import { createEventRegistrationStore } from '@/lib/event-registration';
+import {createStandardTaskStore} from '@/lib/standard-tasks';
 import { TaskError } from '@/types/task';
 import { emptySocialGathering, parseSocialGathering } from '@/types/social-gathering';
 
@@ -31,7 +32,8 @@ export async function POST(request: NextRequest) {
     if (body.generate_tasks !== undefined && typeof body.generate_tasks !== 'boolean') throw new TaskError('タスク自動生成の指定が不正です');
     const gathering = body.social_gathering === undefined ? emptySocialGathering() : parseSocialGathering(body.social_gathering);
     const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
-    const seminar = createEventRegistrationStore(getDb()).save(()=>createSeminar({
+    const standard=createStandardTaskStore(getDb());
+    const seminar = createEventRegistrationStore(getDb()).save(()=>{const event=createSeminar({
       event_type: body.event_type ?? 'SEMINAR',
       delivery_method: body.delivery_method ?? null,
       occurrence_type: body.occurrence_type,
@@ -62,7 +64,7 @@ export async function POST(request: NextRequest) {
       abstract_800_requested: Boolean(body.abstract_800_requested),
       receipt_issued: Boolean(body.receipt_issued),
       notes: body.notes ?? '',
-    }),body.registration,actor.id);
+    });standard.initialize(event.id,actor.id);return event;},body.registration,actor.id);
     return NextResponse.json(seminar, { status: 201 });
   } catch (error) {
     if (error instanceof TaskError) return NextResponse.json({ error: error.message }, { status: error.status });

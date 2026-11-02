@@ -3,7 +3,7 @@ import {meetingSubmission} from '../types/meeting.ts';
 export async function smokeMeetingsHome(client) {
   const json=async(...args)=>(await client.request(...args)).json(),ids=[];
   const people=(await json('/api/society-members')).members.filter(p=>p.active);
-  const attendees=people.map(p=>({member_id:p.id,member_version:p.version,response:p.role==='SOCIETY_LECTURER'?'ATTENDING':'PM_ONLY'}));
+  const attendees=people.map(p=>({member_id:p.id,member_version:p.version,response:p.role==='SOCIETY_LECTURER'?'ATTENDING':'ABSENT'}));
   const input={title:'架空の打ち合わせ',date:'2027-04-01',time:'10:30',method:'ONLINE',attendees};
   try{
     for(const event_type of ['BASIC_COURSE','LECTURE','SEMINAR','OTHER']){

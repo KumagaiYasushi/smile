@@ -1,11 +1,12 @@
 import {TaskError} from './task.ts';
 import {requireDate} from './task-template.ts';
-import {ROSTER_RESPONSE_LABELS} from './staff-roster.ts';
-import type {RosterResponse} from './staff-roster.ts';
 import type {SocietyMember} from './society-member.ts';
 export const MEETING_METHOD_LABELS={ONSITE:'実開催',ONLINE:'オンライン',OTHER:'その他'} as const;
+export const MEETING_RESPONSE_LABELS={ATTENDING:'出席',ABSENT:'欠席'} as const;
+export type MeetingResponse=keyof typeof MEETING_RESPONSE_LABELS;
+export function normalizeMeetingResponse(value:unknown):MeetingResponse|null {return value==='ATTENDING'||value==='AM_ONLY'||value==='PM_ONLY'?'ATTENDING':value==='ABSENT'?'ABSENT':null;}
 export type MeetingMethod=keyof typeof MEETING_METHOD_LABELS;
-export type MeetingAttendee={member_id:number;member_version:number;response:RosterResponse;name?:string;role?:SocietyMember['role']};
+export type MeetingAttendee={member_id:number;member_version:number;response:MeetingResponse|null;name?:string;role?:SocietyMember['role']};
 export type MeetingInput={title:string;date:string|null;time:string|null;method:MeetingMethod;attendees:MeetingAttendee[]};
 export type Meeting=MeetingInput & {id:number;seminar_id:number;version:number};
 export type MeetingChange={action:'create';data:MeetingInput}|{action:'update';id:number;version:number;data:MeetingInput}|{action:'delete';id:number;version:number};
@@ -27,8 +28,8 @@ export function parseMeeting(value:unknown):MeetingInput {
     const p=value as Record<string,unknown>;
     if(Object.keys(p).some(key=>!['member_id','member_version','response'].includes(key))||typeof p.member_id!=='number'||!Number.isSafeInteger(p.member_id)||p.member_id<1||ids.has(p.member_id))throw new TaskError('打ち合わせの名簿IDが不正または重複しています');
     ids.add(p.member_id);
-    if(typeof p.member_version!=='number'||!Number.isSafeInteger(p.member_version)||p.member_version<1||typeof p.response!=='string'||!Object.hasOwn(ROSTER_RESPONSE_LABELS,p.response))throw new TaskError('打ち合わせの名簿情報または出欠が不正です');
-    return {member_id:p.member_id,member_version:p.member_version,response:p.response as RosterResponse};
+    if(typeof p.member_version!=='number'||!Number.isSafeInteger(p.member_version)||p.member_version<1||p.response!==null&&(typeof p.response!=='string'||!Object.hasOwn(MEETING_RESPONSE_LABELS,p.response)))throw new TaskError('打ち合わせの名簿情報または出欠が不正です');
+    return {member_id:p.member_id,member_version:p.member_version,response:p.response as MeetingResponse|null};
   });
   return {title:body.title.trim(),date,time:body.time as string|null,method:body.method as MeetingMethod,attendees};
 }

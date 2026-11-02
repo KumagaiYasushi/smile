@@ -11,7 +11,7 @@ export function useMeetingDraft(eventId?:number) {
     setMembers(result.members);setPlans(result.meetings.map(meeting=>{
       const {id,version,seminar_id,...fields}=meeting;void seminar_id;
       const attendees=fields.attendees.map(p=>({...p,member_version:result.members.find(m=>m.id===p.member_id)?.version??p.member_version}));
-      for(const member of result.members.filter(p=>p.active&&!attendees.some(a=>a.member_id===p.id)))attendees.push({member_id:member.id,member_version:member.version,name:member.name,role:member.role,response:'UNANSWERED'});
+      for(const member of result.members.filter(p=>p.active&&!attendees.some(a=>a.member_id===p.id)))attendees.push({member_id:member.id,member_version:member.version,name:member.name,role:member.role,response:null});
       return {key:`saved-${id}`,id,version,data:{...fields,attendees},dirty:false};
     }));setRemoved([]);
   }
@@ -19,7 +19,7 @@ export function useMeetingDraft(eventId?:number) {
     (eventId?apiJson(`/api/seminars/${eventId}/meetings`,{signal:controller.signal}):apiJson('/api/society-members',{signal:controller.signal}).then(data=>({meetings:[],members:data.members})))
       .then(data=>{if(!controller.signal.aborted)apply(data);}).catch(e=>{if(!controller.signal.aborted)setError(e.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();
   },[eventId]);
-  function add(){setPlans(current=>[...current,{key:`new-${++serial.current}`,dirty:true,data:{title:`打ち合わせ ${current.length+1}`,date:null,time:null,method:'ONSITE',attendees:members.filter(p=>p.active).map(p=>({member_id:p.id,member_version:p.version,name:p.name,role:p.role,response:'UNANSWERED'}))}}]);}
+  function add(){setPlans(current=>[...current,{key:`new-${++serial.current}`,dirty:true,data:{title:`打ち合わせ ${current.length+1}`,date:null,time:null,method:'ONSITE',attendees:members.filter(p=>p.active).map(p=>({member_id:p.id,member_version:p.version,name:p.name,role:p.role,response:null}))}}]);}
   function update(key:string,data:MeetingInput){setPlans(current=>current.map(p=>p.key===key?{...p,data,dirty:true}:p));}
   function remove(key:string){const p=plans.find(p=>p.key===key);if(!p)return;if(p.id!==undefined)setRemoved(current=>[...current,{action:'delete',id:p.id!,version:p.version!}]);setPlans(current=>current.filter(p=>p.key!==key));}
   function payload():MeetingChange[]{return [...removed,...plans.filter(p=>p.dirty).map(p=>p.id===undefined?{action:'create' as const,data:meetingSubmission(p.data)}:{action:'update' as const,id:p.id,version:p.version!,data:meetingSubmission(p.data)})];}

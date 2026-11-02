@@ -3,6 +3,7 @@ import { getSeminarById, updateSeminar, deleteSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
 import { currentUser, requireMember } from '@/lib/auth-server';
 import { createEventRegistrationStore } from '@/lib/event-registration';
+import {createStandardTaskStore} from '@/lib/standard-tasks';
 import { TaskError } from '@/types/task';
 
 type Params = { params: Promise<{ id: string }> };
@@ -34,9 +35,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if ('delivery_method' in body && !isDeliveryMethod(body.delivery_method)) throw new TaskError('開催方法が不正です');
     const actor=await currentUser(); if(!actor)throw new TaskError('ログインが必要です',401);
     const {registration,...fields}=body;
+    const standard=createStandardTaskStore(getDb());
     const updated = createEventRegistrationStore(getDb()).save(()=>{
       const event=updateSeminar(Number(id),fields);
       if(!event)throw new TaskError('見つかりません',404);
+      standard.initialize(event.id,actor.id);
       return event;
     },registration,actor.id);
     if (!updated) return NextResponse.json({ error: '見つかりません' }, { status: 404 });

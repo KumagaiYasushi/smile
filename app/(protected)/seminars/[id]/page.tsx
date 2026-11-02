@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Seminar, CHECKLIST_ITEMS, EVENT_TYPE_LABELS, deliveryMethodLabel } from '@/types/seminar';
 import { eventDeliveryLabel,eventMethodForDate } from '@/types/event-options';
 import { eventAttendanceText,eventFeeText } from '@/lib/event-presentation';
+import {eventSessionName,eventSessionDateText} from '@/types/event-session';
 import { formatEventDate, OCCURRENCE_LABELS } from '@/types/event-schedule';
 import SocialGatheringDetails from '@/components/SocialGatheringDetails';
 
@@ -50,7 +51,7 @@ export default function SeminarDetailPage({ params }: Props) {
 
   const generateSns = () => {
     if (!seminar) return;
-    const dateLines = seminar.dates.map(date => formatEventDate(date, seminar.event_times)).join('\n');
+    const dateLines = [...seminar.dates].sort().map(date => eventSessionDateText(seminar,date)).join('\n');
 
     const text = [
       `【${seminar.name}】`,
@@ -167,8 +168,8 @@ export default function SeminarDetailPage({ params }: Props) {
                   <span className="text-slate-400">未設定</span>
                 ) : (
                   <ul className="space-y-1">
-                    {seminar.dates.map((d, i) => (
-                      <li key={i} className="text-slate-700">{formatEventDate(d, seminar.event_times)}{seminar.occurrence_type==='MULTIPLE'&&<span className="ml-2 text-sm text-slate-500">{deliveryMethodLabel(eventMethodForDate(seminar,d))}</span>}</li>
+                    {[...seminar.dates].sort().map((d, i) => (
+                      <li key={i} className="text-slate-700">{seminar.occurrence_type==='MULTIPLE'&&<span className="mr-2 font-medium">{eventSessionName(seminar,d)}</span>}<span>{formatEventDate(d, seminar.event_times)}</span>{seminar.occurrence_type==='MULTIPLE'&&<span className="ml-2 text-sm text-slate-500">{deliveryMethodLabel(eventMethodForDate(seminar,d))}</span>}</li>
                     ))}
                   </ul>
                 )}

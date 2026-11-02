@@ -11,7 +11,7 @@ test('calendar uses the supplied public calendar only, with Japanese display and
 });
 test('publication outline keeps dates/methods/lecturers/fees and excludes all operational planning and online venue details',()=>{
   const outline=buildEventOutline(event),text=JSON.stringify(outline);
-  assert.equal(outline.venue,null);assert.match(outline.schedule[0].when,/09:30/);assert.equal(outline.schedule[1].method,'オンライン');assert.equal(outline.repeat_fees[1].amount,500);assert.equal(outline.fees[2].amount,0);
+  assert.equal(outline.venue,null);assert.equal(outline.schedule[0].session,`${event.name} 第1回`);assert.equal(outline.schedule[1].session,`${event.name} 第2回`);assert.match(outlineSections(outline).find(p=>p.title==='開催日時・開催方法').text,/第2回/);assert.match(outline.schedule[0].when,/09:30/);assert.equal(outline.schedule[1].method,'オンライン');assert.equal(outline.repeat_fees[1].amount,500);assert.equal(outline.fees[2].amount,0);
   assert.ok(text.includes('公開施設'));assert.ok(text.includes('懇親会のお店'));
   for(const marker of ['非公開','98765','12345','54321','76543','participants','budget','external_payment','assistant_members'])assert.ok(!text.includes(marker),marker);
   const mixed=buildEventOutline({...event,session_delivery_methods:{'2027-06-01':'ONSITE','2027-06-08':'ONLINE'},venue:'公開会場'});assert.equal(mixed.venue,'公開会場');

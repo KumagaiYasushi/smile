@@ -29,7 +29,7 @@ export async function smokeDashboard(client) {
     const response = await client.request('/api/dashboard');
     assert.equal(response.headers.get('cache-control'), 'no-store');
     const result = await response.json();
-    assert.deepEqual(result.counts, { ALL: 5, OVERDUE: 1, IN_REVIEW: 2, UNASSIGNED: 2, IMPORTANT: 2, MINE: 3 });
+    assert.deepEqual(result.counts, { ALL: 7, OVERDUE: 1, IN_REVIEW: 2, UNASSIGNED: 4, IMPORTANT: 2, MINE: 3 });
     assert.equal(result.event_count, 2);
     assert.equal(result.items[0].id, overdue.id);
     assert.equal(result.items.find((item) => item.id === boundary.id).seminar_id, second);
@@ -49,7 +49,7 @@ export async function smokeDashboard(client) {
     assert.equal((await json(`/api/seminars/${first}/tasks/${review.id}`)).task.version, review.version);
     await client.request(`/api/seminars/${first}/tasks/${review.id}`, 'PATCH', { status: 'DONE', version: review.version });
     const updated = await json('/api/dashboard');
-    assert.equal(updated.counts.ALL, 4);
+    assert.equal(updated.counts.ALL, 6);
     assert.equal(updated.counts.MINE, 2);
     assert.equal(updated.counts.IN_REVIEW, 1);
     console.log('PASS: authenticated cross-event dashboard, personal membership/deduplication, category filters, horizons, validation and live counts after task completion');

@@ -27,7 +27,7 @@ export async function smokeReschedule(client,db) {
     assert.equal(preview.items.find((item) => item.task_id === generated.id).manually_changed, true);
     assert.equal(preview.items.find((item) => item.task_id === generated.id).proposed_due_date, '2027-01-02');
     let payload = { dates: preview.new_dates, base_date: preview.base_date, preview_token: preview.preview_token, decisions: [
-      { task_id: generated.id, action: 'proposed' }, { task_id: manual.id, action: 'custom', due_date: '2027-02-05' },
+      ...preview.items.map(item=>item.task_id===generated.id?{task_id:item.task_id,action:'proposed'}:item.task_id===manual.id?{task_id:item.task_id,action:'custom',due_date:'2027-02-05'}:{task_id:item.task_id,action:'keep'}),
     ] };
     await client.request(`${root}/reschedule`, 'POST', { ...payload, decisions: [] }, 400);
     await client.request(`${root}/reschedule`, 'POST', { ...payload, actor_id: 999 }, 400);

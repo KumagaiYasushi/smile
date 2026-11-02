@@ -127,13 +127,14 @@ export default function TasksPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([fetchJson(`/api/seminars/${id}/tasks`, { signal: controller.signal }), fetchJson('/api/members', { signal: controller.signal }), fetchJson(`/api/seminars/${id}`, { signal: controller.signal })])
+    fetchJson(`/api/seminars/${id}/tasks/initialize`,{method:'POST',signal:controller.signal}).then(()=>Promise.all([fetchJson(`/api/seminars/${id}/tasks`, { signal: controller.signal }), fetchJson('/api/members', { signal: controller.signal }), fetchJson(`/api/seminars/${id}`, { signal: controller.signal })]))
       .then(([data, directory, seminar]) => { setTasks(data.tasks); setMembers(directory.members); setSeminarName(seminar.name); setLoading(false); })
       .catch((error) => { if (!controller.signal.aborted) { setError(error.message); setLoading(false); } });
     return () => controller.abort();
   }, [id]);
 
   async function refresh() {
+    await fetchJson(`${endpoint}/initialize`,{method:'POST'});
     const [data, directory, seminar] = await Promise.all([fetchJson(endpoint), fetchJson('/api/members'), fetchJson(`/api/seminars/${id}`)]);
     setTasks(data.tasks); setMembers(directory.members); setSeminarName(seminar.name);
   }
@@ -176,7 +177,7 @@ export default function TasksPage({ params }: { params: Promise<{ id: string }> 
   return <div className="space-y-5">
     <Link href={`/seminars/${id}`} className="text-sm text-sky-700">← イベント詳細へ</Link>
     <Link href={`/seminars/${id}/reschedule`} className="ml-4 inline-block text-sm text-sky-700 underline">開催日・期限変更</Link>
-    <div><h1 className="text-2xl font-bold text-slate-800">タスク・期限管理</h1><p className="mt-1 text-slate-500">{seminarName}</p></div>
+    <div><h1 className="text-2xl font-bold text-slate-800">タスク・期限管理</h1><p className="mt-1 text-slate-500">{seminarName}</p><p className="mt-2 text-sm text-slate-600">基本タスクはイベント登録・保存時に自動設定します。「タスクを追加」から任意のタスクも作成できます。</p></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
     <div className="flex flex-wrap gap-3">

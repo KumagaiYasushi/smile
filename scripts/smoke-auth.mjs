@@ -24,6 +24,7 @@ import { smokeExternalLunch } from './smoke-external-lunch.mjs';
 import { smokeEventDetails } from './smoke-event-details.mjs';
 import { smokeMeetingsHome } from './smoke-meetings-home.mjs';
 import { smokeEventOutline } from './smoke-event-outline.mjs';
+import { smokeStandardTasks } from './smoke-standard-tasks.mjs';
 
 // All credentials are generated for this run. Nothing is written to the app's data/ or env files.
 const directory = mkdtempSync(join(tmpdir(), 'smile-auth-smoke-'));
@@ -83,7 +84,7 @@ try {
     ['/api/seminars/1/participants', ['GET', 'POST']], ['/api/seminars/1/participants/1', ['GET', 'PATCH', 'DELETE']],
     ['/api/admin/users', ['GET', 'POST']], ['/api/auth/me', ['GET']],
     ['/api/members', ['GET']], ['/api/seminars/1/tasks', ['GET', 'POST']],
-    ['/api/seminars/1/tasks/1', ['GET', 'PATCH', 'DELETE']],
+    ['/api/seminars/1/tasks/1', ['GET', 'PATCH', 'DELETE']], ['/api/seminars/1/tasks/initialize',['POST']],
     ['/api/task-templates', ['GET', 'POST']], ['/api/task-templates/1', ['PATCH']],
     ['/api/seminars/1/tasks/template-preview', ['POST']], ['/api/seminars/1/tasks/apply-templates', ['POST']],
     ['/api/seminars/1/schedule-preview', ['POST']], ['/api/seminars/1/reschedule', ['POST']], ['/api/seminars/1/schedule-history', ['GET']],
@@ -134,6 +135,7 @@ try {
   await smokeEventDetails(member);
   await smokeMeetingsHome(member);
   await smokeEventOutline(member);
+  await smokeStandardTasks(member,db);
   const seminar = await (await member.request('/api/seminars', 'POST', { occurrence_type: 'MULTIPLE', name: '架空認証検証' }, 201)).json();
   const participant = await (await member.request(`/api/seminars/${seminar.id}/participants`, 'POST', { name: '架空参加者' }, 201)).json();
   const correct = `/api/seminars/${seminar.id}/participants/${participant.id}`;

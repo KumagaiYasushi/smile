@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { eventDeliveryLabel,eventMethodForDate } from '@/types/event-options';
+import {eventSessionName} from '@/types/event-session';
 import { formatEventDate } from '@/types/event-schedule';
 import { Seminar, CHECKLIST_ITEMS, EventType, EVENT_TYPE_LABELS } from '@/types/seminar';
 
@@ -50,6 +51,8 @@ export default function HomePage() {
 
   const filteredSeminars = seminars.filter((seminar) => eventType === 'ALL' || seminar.event_type === eventType);
 
+  const cards=filteredSeminars.flatMap<{seminar:Seminar;date:string|null}>(seminar=>seminar.occurrence_type==='MULTIPLE'&&seminar.dates.length?[...seminar.dates].sort().map(date=>({seminar,date})):[{seminar,date:null}]);
+
   return (
     <div>
       <div className="mb-8">
@@ -86,9 +89,9 @@ export default function HomePage() {
         <p className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">この種別のイベントはまだ登録されていません</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredSeminars.map((seminar) => (
+          {cards.map(({seminar,date}) => (
             <Link
-              key={seminar.id}
+              key={`${seminar.id}-${date??'event'}`}
               href={`/seminars/${seminar.id}`}
               className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-sky-300 transition-all block"
             >
@@ -96,7 +99,7 @@ export default function HomePage() {
               <span className="inline-block mb-3 ml-2 text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
               <div className="flex items-start justify-between mb-3">
                 <h2 className="font-bold text-slate-800 text-base leading-tight flex-1 mr-2">
-                  {seminar.name}
+                  {date?eventSessionName(seminar,date):seminar.name}
                 </h2>
                 {seminar.dates.length > 0 && (
                   <span className="text-xs bg-sky-50 text-sky-700 px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0">
@@ -107,13 +110,13 @@ export default function HomePage() {
 
               {seminar.dates.length > 0 && (
                 <div className="text-sm text-slate-600 mb-3 space-y-0.5">
-                  {seminar.dates.slice(0, 2).map((d, i) => (
+                  {(date?[date]:seminar.dates.slice(0, 2)).map((d, i) => (
                     <div key={i} className="flex items-center gap-1">
                       <span className="text-slate-400">📅</span>
                       <span>{formatEventDate(d, seminar.event_times)}</span>
                     </div>
                   ))}
-                  {seminar.dates.length > 2 && (
+                  {!date&&seminar.dates.length > 2 && (
                     <div className="text-slate-400 text-xs">他 {seminar.dates.length - 2} 日程...</div>
                   )}
                 </div>

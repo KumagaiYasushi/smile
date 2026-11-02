@@ -13,19 +13,20 @@ export async function smokeTemplates(client) {
       for(const extra of [{dates:['2027-01-01']},{dates:['2027-01-01','2027-02-01']},{dates:[]},{dates:['2027-01-01'],generate_tasks:true,task_base_date:'2027-01-01'}]) {
         const event=await json('/api/seminars','POST',{name:'テンプレート生成停止の検証',event_type,occurrence_type:'MULTIPLE',...extra},201);
         ids.push(event.id);const root=`/api/seminars/${event.id}/tasks`;
-        assert.deepEqual((await json(root)).tasks,[]);
+        assert.equal((await json(root)).tasks.length,1);
+        assert.equal((await json(root)).tasks[0].title,'参加者への確認メール');
         const manual=(await json(root,'POST',{title:'既存タスクを保持',due_date:'2026-12-02'},201)).task;
         for(const endpoint of ['template-preview','apply-templates']) {
           await client.request(`${root}/${endpoint}`,'POST',{base_date:'2027-01-01',preview_token:'a'.repeat(64)},410);
           await client.request(`${root}/${endpoint}`,'POST',{},403,{Origin:'https://untrusted.invalid'});
         }
-        const after=(await json(root)).tasks;assert.equal(after.length,1);assert.equal(after[0].id,manual.id);assert.equal(after[0].version,manual.version);
+        const after=(await json(root)).tasks;assert.equal(after.length,2);assert.equal(after[0].id,manual.id);assert.equal(after[0].version,manual.version);
       }
       const body={relative_days:-7,version:template.version};
       template=(await json(`/api/task-templates/${template.id}`,'PATCH',body)).template;
       await client.request(`/api/task-templates/${template.id}`,'PATCH',body,409);
       const event=await json(`/api/seminars/${ids.at(-1)}`,'PATCH',{notes:'通常のイベント編集'});
-      assert.equal((await json(`/api/seminars/${event.id}/tasks`)).tasks.length,1);
+      assert.equal((await json(`/api/seminars/${event.id}/tasks`)).tasks.length,2);
     }
     console.log('PASS: generation controls/API disabled for all event types and schedules, legacy generation flags ignored, existing/manual tasks and editable template records preserved, auth/CSRF/version guards');
   } finally {

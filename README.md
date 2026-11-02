@@ -3,7 +3,7 @@
 検証サイトの公開準備は [Renderでの公開手順](docs/render-verification.md) を参照してください。配置ブランチは `codex/verification-preview`、設定ファイルは `render.yaml` です。
 
 開発の現状と順序は [開発計画](docs/development-plan.md)、ログインの初回設定と検証方法は [認証基盤](docs/authentication.md) を参照してください。
-イベント別の手動タスク管理は [タスク・期限管理](docs/tasks.md) を参照してください。
+イベント登録時の自動タスク（外来講師あり6件／なし1件）は [基本タスク](docs/standard-tasks.md)、イベント別の任意タスク管理は [タスク・期限管理](docs/tasks.md) を参照してください。
 タスクテンプレートの保管・編集と生成停止については [タスクテンプレート](docs/task-templates.md) を参照してください。
 開催日変更時の期限の確認・更新は [開催日・期限変更](docs/reschedule.md) を参照してください。
 イベントを横断した期限・担当の集計は [タスクダッシュボード](docs/dashboard.md) を参照してください。
