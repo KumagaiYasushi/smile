@@ -1,8 +1,14 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import type { Seminar, SeminarInput } from '@/types/seminar';
+import { emptySocialGathering, parseSocialGathering, mergeSocialGathering } from '../types/social-gathering.ts';
+import { initVenueSchema, validateVenueLink } from './venues.ts';
 
-const DB_DIR = path.join(process.cwd(), 'data');
+export type { Seminar, SeminarInput } from '@/types/seminar';
+
+// Runtime database files are provisioned separately, never bundled into deployments.
+const DB_DIR = process.env.SMILE_DATA_DIR ?? path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'seminars.db');
 
 let db: Database.Database | null = null;
@@ -10,9 +16,7 @@ let db: Database.Database | null = null;
 export function getDb(): Database.Database {
   if (db) return db;
 
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-  }
+  fs.mkdirSync(DB_DIR, { recursive: true });
 
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
@@ -21,6 +25,7 @@ export function getDb(): Database.Database {
 }
 
 function initSchema(db: Database.Database) {
+  initVenueSchema(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS seminars (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,35 +78,35 @@ function initSchema(db: Database.Database) {
       UPDATE participants SET updated_at = datetime('now', 'localtime') WHERE id = NEW.id;
     END;
   `);
+
+  // Additive migration: retain existing IDs, dates, participants and checklist data.
+  // Recheck inside the write transaction so concurrent first requests migrate once.
+  db.transaction(() => {
+    const columns = db.prepare('PRAGMA table_info(seminars)').all() as { name: string }[];
+    if (!columns.some((column) => column.name === 'event_type')) {
+      db.exec(`ALTER TABLE seminars ADD COLUMN event_type TEXT NOT NULL
+        DEFAULT 'SEMINAR' CHECK (event_type IN ('BASIC_COURSE', 'LECTURE', 'SEMINAR'))`);
+    }
+    if (!columns.some((column) => column.name === 'delivery_method')) {
+      // Do not infer a delivery method for historical records.
+      db.exec(`ALTER TABLE seminars ADD COLUMN delivery_method TEXT
+        CHECK (delivery_method IN ('ONSITE', 'ONLINE', 'HYBRID'))`);
+    }
+    if (!columns.some((column) => column.name === 'social_gathering')) {
+      db.exec(`ALTER TABLE seminars ADD COLUMN social_gathering TEXT NOT NULL
+        DEFAULT '{"status":"UNDECIDED","start_at":null,"end_at":null,"venue":"","fee":null}'
+        CHECK (json_valid(social_gathering))`);
+    }
+    if (!columns.some((column) => column.name === 'venue_id')) {
+      db.exec('ALTER TABLE seminars ADD COLUMN venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL');
+    }
+  }).immediate();
 }
 
 // ─── Seminar ─────────────────────────────────────────────────────────────────
 
-export type Seminar = {
-  id: number;
-  name: string;
-  dates: string[];
-  content: string;
-  lecturer_name: string;
-  assistant_members: string[];
-  fee_dental_hygienist: number;
-  fee_dentist: number;
-  fee_other: number;
-  target_participants: string;
-  venue: string;
-  venue_fee: number;
-  sns_announcement: string;
-  lecturer_invitation_sent: boolean;
-  photo_received: boolean;
-  abstract_300_requested: boolean;
-  abstract_800_requested: boolean;
-  receipt_issued: boolean;
-  notes: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type SeminarRow = Omit<Seminar, 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+type SeminarRow = Omit<Seminar, 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+  social_gathering: string;
   dates: string;
   assistant_members: string;
   lecturer_invitation_sent: number;
@@ -114,6 +119,7 @@ type SeminarRow = Omit<Seminar, 'dates' | 'assistant_members' | 'lecturer_invita
 function rowToSeminar(row: SeminarRow): Seminar {
   return {
     ...row,
+    social_gathering: JSON.parse(row.social_gathering),
     dates: JSON.parse(row.dates),
     assistant_members: JSON.parse(row.assistant_members),
     lecturer_invitation_sent: Boolean(row.lecturer_invitation_sent),
@@ -136,27 +142,28 @@ export function getSeminarById(id: number): Seminar | null {
   return row ? rowToSeminar(row) : null;
 }
 
-export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at'>;
-
 export function createSeminar(input: SeminarInput): Seminar {
   const db = getDb();
   const stmt = db.prepare(`
     INSERT INTO seminars (
-      name, dates, content, lecturer_name, assistant_members,
+      event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
       fee_dental_hygienist, fee_dentist, fee_other, target_participants,
-      venue, venue_fee, sns_announcement,
+      venue, venue_id, venue_fee, sns_announcement,
       lecturer_invitation_sent, photo_received, abstract_300_requested,
       abstract_800_requested, receipt_issued, notes
     ) VALUES (
-      @name, @dates, @content, @lecturer_name, @assistant_members,
+      @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
       @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants,
-      @venue, @venue_fee, @sns_announcement,
+      @venue, @venue_id, @venue_fee, @sns_announcement,
       @lecturer_invitation_sent, @photo_received, @abstract_300_requested,
       @abstract_800_requested, @receipt_issued, @notes
     )
   `);
   const result = stmt.run({
     ...input,
+    delivery_method: input.delivery_method ?? null,
+    venue_id: validateVenueLink(db, input.venue_id === undefined ? null : input.venue_id),
+    social_gathering: JSON.stringify(parseSocialGathering(input.social_gathering === undefined ? emptySocialGathering() : input.social_gathering)),
     dates: JSON.stringify(input.dates),
     assistant_members: JSON.stringify(input.assistant_members),
     lecturer_invitation_sent: input.lecturer_invitation_sent ? 1 : 0,
@@ -176,17 +183,20 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
   const merged = { ...current, ...input };
   db.prepare(`
     UPDATE seminars SET
-      name = @name, dates = @dates, content = @content,
+      event_type = @event_type, delivery_method = @delivery_method, social_gathering = @social_gathering, name = @name, dates = @dates, content = @content,
       lecturer_name = @lecturer_name, assistant_members = @assistant_members,
       fee_dental_hygienist = @fee_dental_hygienist, fee_dentist = @fee_dentist,
       fee_other = @fee_other, target_participants = @target_participants,
-      venue = @venue, venue_fee = @venue_fee, sns_announcement = @sns_announcement,
+      venue = @venue, venue_id = @venue_id, venue_fee = @venue_fee, sns_announcement = @sns_announcement,
       lecturer_invitation_sent = @lecturer_invitation_sent, photo_received = @photo_received,
       abstract_300_requested = @abstract_300_requested, abstract_800_requested = @abstract_800_requested,
       receipt_issued = @receipt_issued, notes = @notes
     WHERE id = @id
   `).run({
     id,
+    event_type: merged.event_type,
+    delivery_method: merged.delivery_method,
+    social_gathering: JSON.stringify(input.social_gathering === undefined ? current.social_gathering : mergeSocialGathering(current.social_gathering, input.social_gathering)),
     name: merged.name,
     dates: JSON.stringify(merged.dates),
     content: merged.content,
@@ -197,6 +207,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
     fee_other: merged.fee_other,
     target_participants: merged.target_participants,
     venue: merged.venue,
+    venue_id: input.venue_id === undefined ? current.venue_id : validateVenueLink(db, input.venue_id, current.venue_id),
     venue_fee: merged.venue_fee,
     sns_announcement: merged.sns_announcement,
     lecturer_invitation_sent: merged.lecturer_invitation_sent ? 1 : 0,

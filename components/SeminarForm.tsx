@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useId, isValidElement, cloneElement } from 'react';
 import { useRouter } from 'next/navigation';
-import { Seminar, SeminarInput } from '@/types/seminar';
+import { Seminar, SeminarSubmission, EventType, EVENT_TYPE_LABELS, DeliveryMethod, DELIVERY_METHOD_LABELS } from '@/types/seminar';
+import Link from 'next/link';
+import { emptySocialGathering, parseSocialGathering, SOCIAL_STATUS_LABELS } from '@/types/social-gathering';
+import type { SocialGathering, SocialStatus } from '@/types/social-gathering';
+import VenuePicker from '@/components/VenuePicker';
 
 type Props = {
   initial?: Partial<Seminar>;
-  onSubmit: (data: SeminarInput) => Promise<void>;
+  onSubmit: (data: SeminarSubmission) => Promise<void>;
   submitLabel: string;
 };
 
@@ -16,7 +20,13 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [error, setError] = useState('');
 
   const [name, setName] = useState(initial?.name ?? '');
+  const [eventType, setEventType] = useState<EventType>(initial?.event_type ?? 'SEMINAR');
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod | ''>(initial?.delivery_method ?? '');
   const [dates, setDates] = useState<string[]>(initial?.dates ?? ['']);
+  const [generateTasks, setGenerateTasks] = useState(true);
+  const [taskBaseDate, setTaskBaseDate] = useState('');
+  const validDates = [...new Set(dates.filter(Boolean))];
+  const baseDate = validDates.includes(taskBaseDate) ? taskBaseDate : validDates.length === 1 ? validDates[0] : '';
   const [content, setContent] = useState(initial?.content ?? '');
   const [lecturerName, setLecturerName] = useState(initial?.lecturer_name ?? '');
   const [assistants, setAssistants] = useState<string[]>(
@@ -27,8 +37,11 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [feeOther, setFeeOther] = useState(String(initial?.fee_other ?? ''));
   const [targetParticipants, setTargetParticipants] = useState(initial?.target_participants ?? '');
   const [venue, setVenue] = useState(initial?.venue ?? '');
+  const [venueId, setVenueId] = useState<number | null>(initial?.venue_id ?? null);
   const [venueFee, setVenueFee] = useState(String(initial?.venue_fee ?? ''));
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [social, setSocial] = useState<SocialGathering>(() => initial?.social_gathering ?? emptySocialGathering());
+  const [socialFee, setSocialFee] = useState(String(initial?.social_gathering?.fee ?? ''));
 
   const updateDate = (i: number, value: string) => {
     const next = [...dates];
@@ -52,10 +65,18 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       setError('セミナー名は必須です');
       return;
     }
+    if (!deliveryMethod) {
+      setError('開催方法を選択してください');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       await onSubmit({
+        ...(!initial?.id ? { generate_tasks: generateTasks, ...(generateTasks && baseDate ? { task_base_date: baseDate } : {}) } : {}),
+        event_type: eventType,
+        delivery_method: deliveryMethod,
+        social_gathering: parseSocialGathering({ ...social, fee: socialFee === '' ? null : Number(socialFee) }),
         name: name.trim(),
         dates: dates.filter((d) => d.trim()),
         content,
@@ -66,6 +87,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         fee_other: Number(feeOther) || 0,
         target_participants: targetParticipants,
         venue,
+        venue_id: venueId,
         venue_fee: Number(venueFee) || 0,
         sns_announcement: initial?.sns_announcement ?? '',
         lecturer_invitation_sent: initial?.lecturer_invitation_sent ?? false,
@@ -75,8 +97,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         receipt_issued: initial?.receipt_issued ?? false,
         notes,
       });
-    } catch {
-      setError('保存に失敗しました');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '保存に失敗しました');
       setSaving(false);
     }
   };
@@ -84,12 +106,40 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
 
       <Section title="基本情報">
+        {!initial?.id && <div className="rounded-xl bg-sky-50 p-4 space-y-3 text-sm">
+          <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={generateTasks} onChange={(e) => setGenerateTasks(e.target.checked)} />種別のテンプレートからタスクを自動生成する</label>
+          <p>有効なテンプレートがある場合、開催日を基準に期限を計算します。担当者は作成後に割り当てられます。</p>
+          <Link href="/task-templates" className="inline-block text-sky-800 underline">タスクテンプレートを管理</Link>
+          {generateTasks && validDates.length > 0 && <label className="block font-medium">タスク期限の基準日
+            <select aria-label="タスク期限の基準日" required value={baseDate} onChange={(e) => setTaskBaseDate(e.target.value)} className={inputClass}>
+              <option value="">開催日から選択してください</option>
+              {validDates.map((date) => <option key={date} value={date}>{date}</option>)}
+            </select>
+          </label>}
+          {generateTasks && validDates.length === 0 && <p>日程未定で登録する場合は自動生成を外してください。後からプレビューして追加できます。</p>}
+        </div>}
+        <div>
+          <label htmlFor="event-type" className="block text-sm font-medium text-slate-700 mb-1.5">イベント種別</label>
+          <select id="event-type" value={eventType} onChange={(e) => setEventType(e.target.value as EventType)} className={inputClass}>
+            {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <Field label="開催方法" required>
+          <select required value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value as DeliveryMethod | '')} className={inputClass}>
+            <option value="" disabled>選択してください</option>
+            {Object.entries(DELIVERY_METHOD_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </Field>
         <Field label="セミナー名" required>
           <input
             type="text"
@@ -101,11 +151,15 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
 
         <Field label="日程">
-          <div className="space-y-2">
+          {initial?.id ? <div className="space-y-2 text-sm">
+            <p>{validDates.join('、') || '日程未定'}</p>
+            <Link href={`/seminars/${initial.id}/reschedule`} className="text-sky-800 underline">開催日・期限変更でプレビューする</Link>
+          </div> : <div className="space-y-2">
             {dates.map((d, i) => (
               <div key={i} className="flex gap-2 items-center">
                 <input
                   type="date"
+                  aria-label={`開催日 ${i + 1}`}
                   value={d}
                   onChange={(e) => updateDate(i, e.target.value)}
                   className={`${inputClass} flex-1`}
@@ -128,7 +182,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             >
               ＋ 日程を追加
             </button>
-          </div>
+          </div>}
         </Field>
 
         <Field label="セミナー内容">
@@ -153,13 +207,14 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
           />
         </Field>
 
-        <Field label="アシスタントメンバー">
+        <Field label="サポートメンバー">
           <div className="space-y-2">
             {assistants.map((a, i) => (
               <div key={i} className="flex gap-2 items-center">
                 <input
                   type="text"
                   value={a}
+                  aria-label={`サポートメンバー ${i + 1}`}
                   onChange={(e) => updateAssistant(i, e.target.value)}
                   placeholder="氏名"
                   className={`${inputClass} flex-1`}
@@ -235,6 +290,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="会場">
+        {deliveryMethod === 'ONLINE' && <p className="text-sm text-slate-500">配信拠点などの内部記録に使用できます。オンライン開催の案内文には会場を掲載しません。</p>}
+        <VenuePicker value={venueId} onSelect={(id, location) => { setVenueId(id); if (location !== undefined) setVenue(location); }} onReferenceFee={fee => setVenueFee(String(fee))} />
         <Field label="会場名・住所">
           <input
             type="text"
@@ -255,6 +312,30 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
             className={`${inputClass} max-w-xs`}
           />
         </Field>
+      </Section>
+
+      <Section title="懇親会">
+        <Field label="懇親会の開催">
+          <select value={social.status} onChange={e => setSocial({ ...social, status: e.target.value as SocialStatus })} className={inputClass}>
+            {Object.entries(SOCIAL_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </Field>
+        <p className="text-sm text-slate-500">日時・場所・参加費が未定でも保存できます。「開催しない」に変更しても入力済みの情報は保持します。</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="懇親会の開始日時（日本時間）">
+            <input type="datetime-local" value={social.start_at ?? ''} onChange={e => setSocial({ ...social, start_at: e.target.value || null })} className={`${inputClass} min-w-0`} />
+          </Field>
+          <Field label="懇親会の終了日時（日本時間）">
+            <input type="datetime-local" value={social.end_at ?? ''} min={social.start_at ?? undefined} onChange={e => setSocial({ ...social, end_at: e.target.value || null })} className={`${inputClass} min-w-0`} />
+          </Field>
+        </div>
+        <Field label="懇親会の場所・住所">
+          <textarea rows={2} maxLength={2000} value={social.venue} onChange={e => setSocial({ ...social, venue: e.target.value })} placeholder="例：〇〇レストラン、住所" className={textareaClass} />
+        </Field>
+        <Field label="懇親会の参加費（1人あたり・円）">
+          <input type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={socialFee} onChange={e => setSocialFee(e.target.value)} className={`${inputClass} max-w-xs`} />
+        </Field>
+        <p className="text-sm text-slate-500">参加費は空欄なら未定、0円なら無料として表示します。</p>
       </Section>
 
       <Section title="メモ">
@@ -301,13 +382,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  const id = useId();
+  const control = isValidElement<{ id?: string }>(children) && typeof children.type === 'string' && ['input', 'select', 'textarea'].includes(children.type);
+  if (!control) return <fieldset>
+    <legend className="block text-sm font-medium text-slate-700 mb-1.5">{label}{required && <span className="text-red-500 ml-1">*</span>}</legend>
+    {children}
+  </fieldset>;
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">
+      <label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1.5">
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
-      {children}
+      {cloneElement(children, { id })}
     </div>
   );
 }

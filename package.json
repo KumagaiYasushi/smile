@@ -6,7 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test tests/*.test.mjs",
+    "test:smoke": "node scripts/smoke-auth.mjs",
+    "test:browser": "node scripts/browser-check.mjs",
+    "test:verification": "node scripts/check-verification.mjs",
+    "auth:key": "node scripts/setup-auth-key.mjs",
+    "user:create": "node scripts/create-user.mjs",
+    "verification:setup": "node scripts/verification.mjs setup",
+    "verification:start": "node scripts/verification.mjs start"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -22,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "playwright": "1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

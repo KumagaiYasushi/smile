@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getParticipantsBySeminar, createParticipant, getSeminarById } from '@/lib/db';
+import { requireMember } from '@/lib/auth-server';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
+  const denied = await requireMember(_req);
+  if (denied) return denied;
   const { id } = await params;
   const seminar = getSeminarById(Number(id));
   if (!seminar) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
@@ -11,6 +14,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
+  const denied = await requireMember(request);
+  if (denied) return denied;
   const { id } = await params;
   const seminar = getSeminarById(Number(id));
   if (!seminar) return NextResponse.json({ error: '見つかりません' }, { status: 404 });

@@ -1,5 +1,38 @@
+import type { SocialGathering } from './social-gathering.ts';
+
+export const EVENT_TYPE_LABELS = {
+  BASIC_COURSE: 'ベーシックコース',
+  LECTURE: '講演会',
+  SEMINAR: 'セミナー',
+} as const;
+
+export type EventType = keyof typeof EVENT_TYPE_LABELS;
+
+export function isEventType(value: unknown): value is EventType {
+  return typeof value === 'string' && Object.hasOwn(EVENT_TYPE_LABELS, value);
+}
+
+export const DELIVERY_METHOD_LABELS = {
+  ONSITE: '現地開催',
+  ONLINE: 'オンライン',
+  HYBRID: '現地開催＋オンライン',
+} as const;
+
+export type DeliveryMethod = keyof typeof DELIVERY_METHOD_LABELS;
+
+export function isDeliveryMethod(value: unknown): value is DeliveryMethod {
+  return typeof value === 'string' && Object.hasOwn(DELIVERY_METHOD_LABELS, value);
+}
+
+export function deliveryMethodLabel(value: DeliveryMethod | null): string {
+  return value ? DELIVERY_METHOD_LABELS[value] : '未設定';
+}
+
 export type Seminar = {
   id: number;
+  event_type: EventType;
+  delivery_method: DeliveryMethod | null;
+  social_gathering: SocialGathering;
   name: string;
   dates: string[];
   content: string;
@@ -10,6 +43,7 @@ export type Seminar = {
   fee_other: number;
   target_participants: string;
   venue: string;
+  venue_id: number | null;
   venue_fee: number;
   sns_announcement: string;
   lecturer_invitation_sent: boolean;
@@ -23,6 +57,7 @@ export type Seminar = {
 };
 
 export type SeminarInput = Omit<Seminar, 'id' | 'created_at' | 'updated_at'>;
+export type SeminarSubmission = SeminarInput & { generate_tasks?: boolean; task_base_date?: string };
 
 export const CHECKLIST_ITEMS: { key: keyof Pick<Seminar, 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'>; label: string }[] = [
   { key: 'lecturer_invitation_sent', label: '講師依頼状' },
