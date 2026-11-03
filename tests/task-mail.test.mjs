@@ -41,3 +41,17 @@ test('concurrent sends claim once and a different connected Gmail cannot reconci
 test('definitive Gmail rejections permit editing and retry, while accepted sends cannot be resubmitted',async()=>{const {db,mail,task}=fixture();try{
   const gateway={status:()=>({connected:true,email:'sender@example.invalid'}),request:async()=>{throw new TaskError('forbidden',424);}};const saved=mail.save(event,task.id,{...draft,version:0},1);await assert.rejects(()=>mail.send(event,task.id,saved.version,1,gateway,'https://app.example.invalid'),{status:424});assert.equal(mail.read(event,task.id).phase,'FAILED');const changed=mail.save(event,task.id,{...draft,subject:'宛先を確認した依頼',version:mail.read(event,task.id).version},1);assert.equal(changed.phase,'DRAFT');const sent=await mail.send(event,task.id,changed.version,1,{...gateway,request:async()=>({id:'accepted',threadId:'thread'})},'https://app.example.invalid');assert.equal(sent.phase,'SENT');
 }finally{db.close();}});
+test('latest task request can regenerate a template while saved drafts and sent messages remain intact',async()=>{
+  const {db,mail,task,tasks}=fixture();try{
+    const saved=mail.save(event,task.id,{...draft,version:0},1);
+    const changed=tasks.updateTask(1,task.id,{title:'変更した依頼状',description:'最新版の依頼内容のみを使用してください。',due_date:'2027-05-20'},task.version,1);
+    const generated=mail.template(event,task.id);assert.ok(generated.body.includes(changed.description));assert.ok(generated.body.includes('2027-05-20'));assert.ok(generated.subject.includes(changed.title));
+    assert.deepEqual(mail.read(event,task.id),saved);
+    assert.throws(()=>mail.template({...event,id:2},task.id),{status:404});
+    const updated=mail.save(event,task.id,{...generated,to:draft.to,version:saved.version},1);
+    const gateway={status:()=>({connected:true,email:'sender@example.invalid'}),request:async()=>({id:'sent-template',threadId:'thread-template'})};
+    const sent=await mail.send(event,task.id,updated.version,1,gateway,'https://app.example.invalid');
+    mail.template(event,task.id);assert.deepEqual(mail.read(event,task.id),sent);
+    assert.throws(()=>mail.save(event,task.id,{...generated,to:draft.to,version:sent.version},1),{status:409});
+  }finally{db.close();}
+});

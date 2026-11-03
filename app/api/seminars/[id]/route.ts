@@ -37,7 +37,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const {registration,...fields}=body;
     const standard=createStandardTaskStore(getDb());
     const updated = createEventRegistrationStore(getDb()).save(()=>{
-      const event=updateSeminar(Number(id),fields);
+      const event=updateSeminar(Number(id),fields,actor.id);
       if(!event)throw new TaskError('見つかりません',404);
       standard.initialize(event.id,actor.id);
       return event;

@@ -9,6 +9,12 @@ export default function TaskMailPanel({eventId,taskId,phase,onChange}:{eventId:s
   async function load(){const [result,gmail]=await Promise.all([apiJson(endpoint),apiJson('/api/gmail')]);setMail(result.mail);setDraft({to:result.mail.to,subject:result.mail.subject,body:result.mail.body});setConnection(gmail);return result.mail as TaskMail;}
   async function show(){if(open){setOpen(false);return;}setBusy(true);setError('');try{if(!mail)await load();setOpen(true);}catch(e){setError(e instanceof Error?e.message:'文面を取得できませんでした');}finally{setBusy(false);}}
   async function reload(){if(draft&&mail&&(draft.to!==mail.to||draft.subject!==mail.subject||draft.body!==mail.body)&&!confirm('編集中の文面を破棄して最新の内容を取得しますか？'))return;setBusy(true);setError('');setNotice('');try{await load();}catch(e){setError(e instanceof Error?e.message:'文面を再取得できませんでした');}finally{setBusy(false);}}
+  async function rebuild(){
+    if(!confirm('最新のタスク依頼文・期限・演者から件名と本文を作り直します。現在の編集内容は置き換わります。保存するまで保存済みの文面は変更されません。'))return;
+    setBusy(true);setError('');setNotice('');
+    try{const result=await apiJson(endpoint);if(!['DRAFT','FAILED'].includes(result.mail.phase))throw new Error('送信済み・送信処理中の文面は作り直せません');setMail(result.mail);setDraft({...result.template,to:draft?.to??result.mail.to});setNotice('タスク内の依頼文を反映しました。内容を確認して保存してください。');}
+    catch(e){setError(e instanceof Error?e.message:'文面を作り直せませんでした');}finally{setBusy(false);}
+  }
   async function copy(){setError('');setNotice('');try{const source=draft??await load();await navigator.clipboard.writeText(`宛先：${source.to}\n件名：${source.subject}\n\n${source.body}`);setNotice('文面をコピーしました');}catch{setOpen(true);setError('コピーできませんでした。文面を開き、本文を選択してコピーしてください。');setTimeout(()=>bodyRef.current?.select(),0);}}
   async function save(){if(!mail||!draft)return null;const fields=parseTaskMail(draft);const result=await apiJson(endpoint,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...fields,version:mail.version})});setMail(result.mail);return result.mail as TaskMail;}
   async function saveDraft(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');setNotice('');try{await save();setNotice('文面を保存しました');await onChange();}catch(e){setError(e instanceof Error?e.message:'保存できませんでした');}finally{setBusy(false);}}
@@ -24,6 +30,7 @@ export default function TaskMailPanel({eventId,taskId,phase,onChange}:{eventId:s
       <label className="block text-sm">本文<textarea ref={bodyRef} aria-label="メールの本文" required rows={12} maxLength={20000} value={draft.body} readOnly={!editable} disabled={busy} onChange={e=>setDraft({...draft,body:e.target.value})} className="mt-1 block w-full rounded-lg border bg-white p-2"/></label>
       {mail.sender&&<p className="text-xs text-slate-600">送信元：{mail.sender}{connection?.email!==mail.sender?'（返信確認にはこのGmailを接続してください）':''}</p>}
       <p className="text-xs text-slate-600">この画面の「Gmailで送信」で送ったメールを自動記録します。相手からの返信で「受信済み」になります。資料の内容・不足分は別途確認してください。</p>
+      {editable&&<button type="button" disabled={busy} onClick={rebuild} className="mr-4 text-sm text-sky-800 underline">タスクの依頼文から作り直す</button>}
       <button type="button" disabled={busy} onClick={reload} className="text-sm text-sky-800 underline">文面を再取得</button>
       <div className="flex flex-wrap gap-3">{editable&&<><button disabled={busy} className="rounded-lg border bg-white px-3 py-2 text-sm">文面を保存</button><button type="button" disabled={busy||!connection?.connected||!connection?.configured} onClick={send} className="rounded-lg bg-sky-800 px-3 py-2 text-sm text-white disabled:opacity-50">Gmailで送信</button></>}
       <a href={compose} target="_blank" rel="noopener noreferrer" className="py-2 text-sm text-sky-800 underline">Gmailで文面を開く（自動記録なし）</a></div>

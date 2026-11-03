@@ -1,3 +1,5 @@
+import {resolveSpeakers} from './speakers.ts';
+import {eventSpeakers} from '../types/speaker.ts';
 import {resolveSocialAttendance} from './social-attendance.ts';
 import {allowOtherEvents} from './event-type-migration.ts';
 import {emptyExternalPayment,parseExternalPayment} from '../types/external-payment.ts';
@@ -96,6 +98,7 @@ function initSchema(db: Database.Database) {
   // Recheck inside the write transaction so concurrent first requests migrate once.
   db.transaction(() => {
     const columns = db.prepare('PRAGMA table_info(seminars)').all() as { name: string }[];
+    if (!columns.some(column => column.name === 'speakers')) db.exec("ALTER TABLE seminars ADD COLUMN speakers TEXT CHECK(speakers IS NULL OR json_valid(speakers))");
     if (!columns.some((column) => column.name === 'event_type')) {
       db.exec(`ALTER TABLE seminars ADD COLUMN event_type TEXT NOT NULL
         DEFAULT 'SEMINAR' CHECK (event_type IN ('BASIC_COURSE', 'LECTURE', 'SEMINAR', 'OTHER'))`);
@@ -135,7 +138,8 @@ function initSchema(db: Database.Database) {
 
 // ─── Seminar ─────────────────────────────────────────────────────────────────
 
-type SeminarRow = Omit<Seminar, 'external_payment' | 'audience_roles' | 'external_lecturer' | 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+type SeminarRow = Omit<Seminar, 'speakers' | 'external_payment' | 'audience_roles' | 'external_lecturer' | 'session_delivery_methods' | 'repeat_fees' | 'event_times' | 'social_gathering' | 'dates' | 'assistant_members' | 'lecturer_invitation_sent' | 'photo_received' | 'abstract_300_requested' | 'abstract_800_requested' | 'receipt_issued'> & {
+  speakers:string|null;
   external_lecturer:string;
   external_payment:string;
   audience_roles:string|null;
@@ -155,6 +159,7 @@ type SeminarRow = Omit<Seminar, 'external_payment' | 'audience_roles' | 'externa
 function rowToSeminar(row: SeminarRow): Seminar {
   return {
     ...row,
+    speakers:row.speakers===null?null:JSON.parse(row.speakers),
     external_lecturer:JSON.parse(row.external_lecturer),
     external_payment:JSON.parse(row.external_payment),
     audience_roles:row.audience_roles===null?null:JSON.parse(row.audience_roles),
@@ -184,7 +189,7 @@ export function getSeminarById(id: number): Seminar | null {
   return row ? rowToSeminar(row) : null;
 }
 
-export function createSeminar(input: SeminarInput): Seminar {
+export function createSeminar(input: SeminarInput, actorId?:number): Seminar {
   const db = getDb();
   if(input.target_participants!==undefined&&typeof input.target_participants!=='string')throw new TaskError('参加対象の入力形式が不正です');
   const dates = eventDates(input.dates);
@@ -195,16 +200,18 @@ export function createSeminar(input: SeminarInput): Seminar {
   const methods=parseSessionMethods(input.session_delivery_methods===undefined?{}:input.session_delivery_methods,dates);
   const repeatFees=parseRepeatFees(input.repeat_fees===undefined?emptyRepeatFees():input.repeat_fees);
   const audience=input.audience_roles===undefined?(input.target_participants?.trim()?null:allAudienceRoles()):parseAudienceRoles(input.audience_roles);
-  const external=input.external_lecturer===undefined?emptyExternal():resolveExternalSelection(db,input.external_lecturer);
+  const speakers=input.speakers===undefined?null:resolveSpeakers(db,input.speakers,[],actorId);
+  const guest=speakers?.find(p=>p.role==='EXTERNAL_LECTURER');
+  const external=speakers!==null?(guest?{status:'YES' as const,id:guest.id,name:guest.name,facility:guest.facility}:{...emptyExternal(),status:'NO' as const}):input.external_lecturer===undefined?emptyExternal():resolveExternalSelection(db,input.external_lecturer);
   const stmt = db.prepare(`
     INSERT INTO seminars (
-      event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
+      speakers, event_type, delivery_method, social_gathering, name, dates, content, lecturer_name, assistant_members,
       fee_dental_hygienist, fee_dentist, fee_other, target_participants, audience_roles,
       venue, venue_id, venue_fee, sns_announcement, occurrence_type, event_times, lecturer_role, session_delivery_methods, repeat_fees, external_lecturer, external_payment,
       lecturer_invitation_sent, photo_received, abstract_300_requested,
       abstract_800_requested, receipt_issued, notes
     ) VALUES (
-      @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
+      @speakers, @event_type, @delivery_method, @social_gathering, @name, @dates, @content, @lecturer_name, @assistant_members,
       @fee_dental_hygienist, @fee_dentist, @fee_other, @target_participants, @audience_roles,
       @venue, @venue_id, @venue_fee, @sns_announcement, @occurrence_type, @event_times, @lecturer_role, @session_delivery_methods, @repeat_fees, @external_lecturer, @external_payment,
       @lecturer_invitation_sent, @photo_received, @abstract_300_requested,
@@ -213,6 +220,7 @@ export function createSeminar(input: SeminarInput): Seminar {
   `);
   const result = stmt.run({
     ...input,
+    speakers:speakers===null?null:JSON.stringify(speakers),
     audience_roles:audience===null?null:JSON.stringify(audience),
     target_participants:audience===null?input.target_participants:audienceText(audience),
     session_delivery_methods: JSON.stringify(methods),
@@ -236,7 +244,7 @@ export function createSeminar(input: SeminarInput): Seminar {
   return getSeminarById(result.lastInsertRowid as number)!;
 }
 
-export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar | null {
+export function updateSeminar(id: number, input: Partial<SeminarInput>, actorId?:number): Seminar | null {
   const db = getDb();
   const current = getSeminarById(id);
   if (!current) return null;
@@ -252,13 +260,16 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
     ...parseSessionMethods(input.session_delivery_methods,dates),
   };
   const repeatFees=input.repeat_fees===undefined?current.repeat_fees:parseRepeatFees(input.repeat_fees);
-  const external=input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer);
+  const speakers=input.speakers===undefined?current.speakers:resolveSpeakers(db,input.speakers,eventSpeakers(current),actorId);
+  const guest=speakers?.find(p=>p.role==='EXTERNAL_LECTURER');
+  const external=input.speakers!==undefined?(guest?{status:'YES' as const,id:guest.id,name:guest.name,facility:guest.facility}:{...emptyExternal(),status:'NO' as const}):input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer);
   const times = input.event_times === undefined ? current.event_times : {
     ...Object.fromEntries(Object.entries(current.event_times).filter(([date]) => !dates.includes(date))),
     ...parseEventTimes(input.event_times, dates),
   };
   db.prepare(`
     UPDATE seminars SET
+      speakers=@speakers,
       event_type = @event_type, delivery_method = @delivery_method, social_gathering = @social_gathering, name = @name, dates = @dates, content = @content,
       lecturer_name = @lecturer_name, assistant_members = @assistant_members,
       fee_dental_hygienist = @fee_dental_hygienist, fee_dentist = @fee_dentist,
@@ -270,6 +281,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>): Seminar
     WHERE id = @id
   `).run({
     id,
+    speakers:speakers==null?null:JSON.stringify(speakers),
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
     external_lecturer:JSON.stringify(external),

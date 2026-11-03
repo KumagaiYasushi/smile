@@ -1,5 +1,7 @@
 'use client';
 
+import SpeakerFields from '@/components/SpeakerFields';
+import {eventSpeakers} from '@/types/speaker';
 import { useState, useId, useRef, isValidElement, cloneElement } from 'react';
 import {flagFieldError,clearFieldError} from '@/components/FormValidationFeedback';
 import { useRouter } from 'next/navigation';
@@ -21,9 +23,7 @@ import type { SessionMethods } from '@/types/event-options';
 import StaffRosterBoard from '@/components/StaffRosterBoard';
 import RegistrationLunchFields from '@/components/RegistrationLunchFields';
 import {useEventRegistration} from '@/components/useEventRegistration';
-import ExternalLecturerPicker from '@/components/ExternalLecturerPicker';
 import type {ExternalSelection} from '@/types/external-lecturer';
-import {emptyExternal} from '@/types/external-lecturer';
 import EventTimesEditor from '@/components/EventTimesEditor';
 import { OCCURRENCE_LABELS, validateOccurrences, parseEventTimes } from '@/types/event-schedule';
 import type { OccurrenceType, EventTimes } from '@/types/event-schedule';
@@ -35,6 +35,7 @@ type Props = {
 };
 
 export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
+  const [speakers,setSpeakers]=useState(()=>eventSpeakers(initial??{}));
   const router = useRouter();
   const formRef=useRef<HTMLFormElement>(null);
   const registration=useEventRegistration(initial?.id);
@@ -48,7 +49,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [name, setName] = useState(initial?.name ?? '');
   const [eventType, setEventType] = useState<EventType>(initial?.event_type ?? 'SEMINAR');
   const deliveryMethod=initial?.delivery_method??undefined;
-  const [external,setExternal]=useState<ExternalSelection>(()=>initial?.external_lecturer?.status==='YES'?initial.external_lecturer:(!initial?.external_lecturer||initial.external_lecturer.status==='UNDECIDED')&&initial?.lecturer_role==='EXTERNAL_LECTURER'&&initial.lecturer_name?{status:'YES',id:null,name:initial.lecturer_name,facility:''}:{...(initial?.external_lecturer??emptyExternal()),status:initial?.external_lecturer?.status==='UNDECIDED'?'NO':initial?.external_lecturer?.status??'NO'});
+  const guest=speakers.find(p=>p.role==='EXTERNAL_LECTURER');
+  const external:ExternalSelection=guest?{status:'YES',id:guest.id,name:guest.name,facility:guest.facility}:{status:'NO',id:null,name:'',facility:''};
   const [dates, setDates] = useState<string[]>(initial?.dates ?? ['']);
   const [occurrence, setOccurrence] = useState<OccurrenceType | ''>(initial?.occurrence_type ?? '');
   const [eventTimes, setEventTimes] = useState<EventTimes>(initial?.event_times ?? {});
@@ -115,6 +117,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       const roleChanges=roles.payload();
       await onSubmit({
         registration: {...(registration.payload(validDates)??{schedule:[...validDates].sort(),attendance:[],lunch:[]}),meetings:meetings.payload(),...(roleChanges?{roles:roleChanges}: {})},
+        speakers,
         event_type: eventType,
         delivery_method: methods[validDates[0]]??deliveryMethod,
         external_lecturer: external,
@@ -154,8 +157,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   return (
     <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-4">
       <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-sky-100 bg-white/95 p-3 shadow-sm">
-        <p className="text-sm text-slate-600">必要な項目を開いて入力してください。出欠・昼食・懇親会は登録後にも設定できます。</p>
-        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','外来講師','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title}>{title}</option>)}</select></label>
+        <p className="text-sm text-slate-600">必要な項目を開いて入力してください。講師は「演者登録（複数選択可）」で選択します。出欠・昼食・懇親会は登録後にも設定できます。</p>
+        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','演者・テーマ','外来講師','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title} value={title}>{title==='演者・テーマ'?'演者登録（複数選択可）':title}</option>)}</select></label>
         <button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=true;})} className="rounded-lg border px-3 py-2 text-sm">すべて開く</button><button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=false;})} className="rounded-lg border px-3 py-2 text-sm">すべて閉じる</button></div>
       </div>
       {error && (
@@ -243,9 +246,11 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
       </Section>
 
+      <Section title="演者・テーマ"><SpeakerFields value={speakers} onChange={setSpeakers}/></Section>
+
       <Section title="外来講師">
-        <Field label="外来講師"><select value={external.status==='YES'?'YES':'NO'} onChange={e=>setExternal({...external,status:e.target.value as 'YES'|'NO'})} className={inputClass}><option value="NO">なし</option><option value="YES">あり</option></select></Field>
-        {external.status==='YES'&&<><ExternalLecturerPicker value={external} onChange={setExternal}/>
+        <p className="text-sm text-slate-600">外部講師は「演者・テーマ」で登録してください。お車代・謝礼はイベント全体の金額です。</p>
+        {external.status==='YES'&&<>
           <div className="grid gap-4 sm:grid-cols-2"><Field label="お車代（円）"><input aria-label="お車代（円）" type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={travel} onChange={e=>setTravel(e.target.value)} className={inputClass}/></Field><Field label="謝礼（円）"><input aria-label="謝礼（円）" type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={honorarium} onChange={e=>setHonorarium(e.target.value)} className={inputClass}/></Field></div><p className="text-xs text-slate-500">空欄は未定、0は0円として保存します。</p>
         </>}
       </Section>
@@ -385,7 +390,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details data-form-section={title} open={title==='基本情報'} className="scroll-mt-36 rounded-xl border border-slate-200 bg-white p-4">
-      <summary className="cursor-pointer select-none text-slate-700"><h2 className="inline text-base font-bold">{title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
+      <summary className="cursor-pointer select-none text-slate-700"><h2 className="inline text-base font-bold">{title==='演者・テーマ'?'演者登録（複数選択可）':title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
       <div className="mt-4 space-y-4">{children}</div>
     </details>
   );

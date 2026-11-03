@@ -99,6 +99,13 @@ async function login(page, password, email = 'member@example.invalid') {
 
 async function memberFlow({ page, context, db, password, step, screenshot, layout }) {
   async function openSystemMenu(){await page.locator('details').filter({has:page.getByRole('navigation',{name:'システムメニュー',includeHidden:true})}).evaluate(node=>{node.open=true;});}
+  async function selectExternalSpeaker(){
+    const section=page.locator('[data-form-section="演者・テーマ"]');await section.evaluate(node=>{node.open=true;});
+    await section.getByRole('button',{name:'演者を追加',exact:true}).click();
+    const speaker=section.locator('fieldset').last();
+    await speaker.getByLabel('演者区分').selectOption('EXTERNAL_LECTURER');
+    await speaker.getByLabel('名簿から選択').selectOption({label:'UI検証の外来講師 / UI検証の編集済み施設'});
+  }
   async function expandEventForm(){await page.getByRole('button',{name:'すべて開く',exact:true}).click();}
   const eventName = 'UI検証用の架空セミナー';
   const method = ({ 1280: 'ONSITE', 390: 'ONLINE', 320: 'HYBRID' })[page.viewportSize().width];
@@ -114,19 +121,21 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   });
   await step('登録画面の折りたたみ・項目移動・閉じた欄のエラー表示',async()=>{
     await page.goto(`${base}/seminars/new`);
-    const sections=page.locator('details[data-form-section]');await expect(sections).toHaveCount(10);
+    const sections=page.locator('details[data-form-section]');await expect(sections).toHaveCount(11);
     await expect(page.locator('details[data-form-section][open]')).toHaveCount(1);
     const compact=await page.evaluate(()=>document.documentElement.scrollHeight);
     await layout('折りたたみ式イベント登録');await screenshot('compact-registration');
     await expandEventForm();const expanded=await page.evaluate(()=>document.documentElement.scrollHeight);assert.ok(expanded>compact*2);
     await page.getByRole('button',{name:'すべて閉じる',exact:true}).click();await expect(page.locator('details[data-form-section][open]')).toHaveCount(0);
     await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('外来講師');
-    await page.getByLabel('外来講師',{exact:true}).selectOption('YES');
+    await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
+    await page.getByRole('button',{name:'演者を追加',exact:true}).click();
+    await page.locator('[data-form-section="演者・テーマ"] fieldset').last().getByLabel('演者区分').selectOption('EXTERNAL_LECTURER');
     await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('基本情報');
     await page.getByLabel('セミナー名',{exact:false}).fill('折りたたみの入力確認');await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
     await page.getByRole('button',{name:'すべて閉じる',exact:true}).click();
     await page.getByRole('button',{name:'登録する',exact:true}).click();
-    const external=page.getByLabel('外来講師名・勤務施設名',{exact:true});await expect(external).toBeVisible();await expect(external).toHaveAttribute('aria-invalid','true');
+    const external=page.locator('[data-form-section="演者・テーマ"]').getByLabel('氏名',{exact:true});await expect(external).toBeVisible();await expect(external).toHaveAttribute('aria-invalid','true');
     await page.goto(base);
   });
   await step('会場台帳の登録・検索・保存失敗時の入力保持', async () => {
@@ -248,8 +257,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByLabel('2027-12-01の開催方法',{exact:true}).selectOption('HYBRID');
     await expect(page.getByRole('heading',{name:'外来講師',exact:true})).toBeVisible();
     await expect(page.getByRole('heading',{name:'講師・スタッフ',exact:true})).toHaveCount(0);
-    await page.getByLabel('外来講師',{exact:true}).selectOption('YES');
-    await page.getByLabel('外来講師名・勤務施設名',{exact:true}).selectOption({label:'UI検証の外来講師 / UI検証の編集済み施設'});
+    await selectExternalSpeaker();
     await page.getByLabel('お車代（円）',{exact:true}).fill('5000');await page.getByLabel('謝礼（円）',{exact:true}).fill('50000');
     const daily=page.getByRole('region',{name:'研究会名簿から出欠登録',exact:true});
     await daily.getByRole('group',{name:'UI検証の架空講師の出欠',exact:true}).getByRole('radio',{name:'欠席',exact:true}).click();
@@ -322,8 +330,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByRole('button',{name:'登録する',exact:true}).click();
     await expect(name).toHaveAttribute('aria-invalid','true');await expect(name).toHaveCSS('border-top-color','rgb(220, 38, 38)');
     await name.fill('UI検証・懇親会の出欠');await expect(name).not.toHaveAttribute('aria-invalid','true');
-    await page.getByLabel('外来講師',{exact:true}).selectOption('YES');
-    await page.getByLabel('外来講師名・勤務施設名',{exact:true}).selectOption({label:'UI検証の外来講師 / UI検証の編集済み施設'});
+    await selectExternalSpeaker();
     await page.getByLabel('懇親会の開催',{exact:true}).selectOption('HELD');
     const first=page.getByRole('group',{name:'開催日の懇親会 1',exact:true});
     await first.getByLabel('懇親会の開催日',{exact:true}).fill('2027-11-03');await first.getByLabel('懇親会の開始時刻',{exact:true}).fill('18:00');
@@ -362,8 +369,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     const fields=await page.locator('details[data-form-section="基本情報"]').locator('select,input[type="text"]').evaluateAll(elements=>elements.slice(0,3).map(e=>e.closest('label')?.textContent??document.querySelector(`label[for="${e.id}"]`)?.textContent??''));
     assert.ok(fields[0].includes('イベント種別')&&fields[1].includes('セミナー名')&&fields[2].includes('開催回数'));
     await page.getByLabel('セミナー名',{exact:false}).fill('UI検証・登録時の出欠と昼食');
-    await page.getByLabel('外来講師',{exact:true}).selectOption('YES');
-    await page.getByLabel('外来講師名・勤務施設名',{exact:true}).selectOption({label:'UI検証の外来講師 / UI検証の編集済み施設'});
+    await selectExternalSpeaker();
     await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
     await page.getByLabel('開催日 1',{exact:true}).fill('2027-10-01');
     await page.getByLabel('2027-10-01の開催方法',{exact:true}).selectOption('ONSITE');
@@ -1109,19 +1115,16 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   await step('メール文面とコピー', async () => {
     await page.goto(`${base}/seminars/${eventId}/email-templates`);
     await expect(page.getByRole('heading', { name: 'メール文面テンプレート', exact: true })).toBeVisible();
-    const editor = page.getByRole('textbox', { name: 'メール文面', exact: true });
+    await page.getByRole('button',{name:'文面を確認',exact:true}).first().click();
+    const editor=page.getByRole('textbox',{name:'メールの本文',exact:true});
     await expect(editor).not.toHaveValue('');
-    for (const label of ['講師依頼メール', '参加案内メール', 'リマインダーメール']) {
-      await page.getByRole('button', { name: label, exact: false }).click();
-      const text = await editor.inputValue();
-      assert.ok(text.includes(methodLabels[method]));
-      assert.equal(text.includes('UI検証の会場・配信拠点'), method !== 'ONLINE');
-      assert.equal(text.includes('会場へのアクセス'), false);
-    }
-    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
-    await page.getByRole('button', { name: 'コピー', exact: true }).click();
-    await expect(page.getByRole('button', { name: '✓ コピー済み', exact: true })).toBeVisible();
-    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await editor.inputValue());
+    const taskData=await (await page.request.get(`${base}/api/seminars/${eventId}/tasks`)).json();
+    const firstMail=await (await page.request.get(`${base}/api/seminars/${eventId}/tasks/${taskData.tasks[0].id}/mail`)).json();
+    assert.equal(await editor.inputValue(),firstMail.mail.body);
+    await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+    await page.getByRole('button',{name:'文面をコピー',exact:true}).first().click();
+    await expect(page.getByRole('status')).toContainText('文面をコピーしました');
+    assert.ok((await page.evaluate(()=>navigator.clipboard.readText())).includes(await editor.inputValue()));
     await layout('メール文面');
   });
   await step('開催要項プレビュー・PDFダウンロード・非公開項目の除外',async()=>{

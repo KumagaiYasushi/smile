@@ -1,4 +1,5 @@
 'use client';
+import {eventSpeakers,SPEAKER_ROLES} from '@/types/speaker';
 
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
@@ -156,7 +157,8 @@ export default function SeminarDetailPage({ params }: Props) {
                 </Row>
               )}
               <Row label="外来講師">{seminar.external_lecturer.status==='YES'?<>{seminar.external_lecturer.name}<br/>{seminar.external_lecturer.facility||'勤務施設未設定'}</>:seminar.external_lecturer.status==='NO'?'なし':'未設定'}</Row>
-              <Row label="講師">{seminar.lecturer_name || <span className="text-slate-400">未設定</span>}{seminar.lecturer_role && <span className="ml-2 text-sm text-slate-500">（{seminar.lecturer_role === 'EXTERNAL_LECTURER' ? '外来講師' : '研究会講師'}）</span>}</Row>
+              <Row label="演者・テーマ">{eventSpeakers(seminar).map((p,i)=><div key={i} className="whitespace-pre-wrap">{p.name}（{SPEAKER_ROLES[p.role]}）{p.facility&&` / ${p.facility}`}<br/>{p.theme||'テーマ未設定'}</div>)}</Row>
+              {seminar.speakers==null&&<Row label="講師">{seminar.lecturer_name || <span className="text-slate-400">未設定</span>}{seminar.lecturer_role && <span className="ml-2 text-sm text-slate-500">（{seminar.lecturer_role === 'EXTERNAL_LECTURER' ? '外来講師' : '研究会講師'}）</span>}</Row>}
               <Row label="サポート">
                 {seminar.assistant_members.length === 0 ? (
                   <span className="text-slate-400">未設定</span>

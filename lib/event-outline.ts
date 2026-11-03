@@ -1,3 +1,4 @@
+import {eventSpeakers} from '../types/speaker.ts';
 import {eventSessionName} from '../types/event-session.ts';
 import type {Seminar} from '../types/seminar.ts';
 import {EVENT_TYPE_LABELS,deliveryMethodLabel} from '../types/seminar.ts';
@@ -8,10 +9,7 @@ import {AUDIENCE_LABELS} from '../types/audience.ts';
 import type {EventOutline} from '../types/event-outline.ts';
 export function buildEventOutline(event:Seminar):EventOutline {
   const online=event.dates.length?event.dates.every(date=>eventMethodForDate(event,date)==='ONLINE'):event.delivery_method==='ONLINE';
-  const lecturers=[];
-  if(event.external_lecturer.status==='YES'&&event.external_lecturer.name)lecturers.push({name:event.external_lecturer.name,facility:event.external_lecturer.facility});
-  const useLegacyLecturer=event.lecturer_role!=='EXTERNAL_LECTURER'||event.external_lecturer.status==='UNDECIDED';
-  if(useLegacyLecturer&&event.lecturer_name&&!lecturers.some(person=>person.name===event.lecturer_name))lecturers.push({name:event.lecturer_name,facility:''});
+  const lecturers=eventSpeakers(event).map(p=>({name:p.name,facility:p.facility,...(p.theme?{theme:p.theme}:{})}));
   const social=normalizeSocialGathering(event.social_gathering);
   return {
     event_id:event.id,organization:'歯周基本治療研究会',name:event.name,event_type:EVENT_TYPE_LABELS[event.event_type],occurrence:event.occurrence_type?OCCURRENCE_LABELS[event.occurrence_type]:'未設定',content:event.content,

@@ -36,6 +36,7 @@ export function deliveryMethodLabel(value: DeliveryMethod | null): string {
 }
 
 export type Seminar = {
+  speakers?: import('./speaker.ts').Speaker[] | null;
   id: number;
   event_type: EventType;
   delivery_method: DeliveryMethod | null;

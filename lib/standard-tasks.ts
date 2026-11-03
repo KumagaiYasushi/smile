@@ -11,10 +11,10 @@ export function createStandardTaskStore(db:Database.Database){
   db.exec(`CREATE TABLE IF NOT EXISTS event_standard_tasks(seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,task_key TEXT NOT NULL,task_id INTEGER REFERENCES event_tasks(id) ON DELETE SET NULL,actor_id INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),PRIMARY KEY(seminar_id,task_key));`);
   return {initialize(seminarId:number,actorId:number){return db.transaction(()=>{
     if(!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId))throw new TaskError('有効な運営メンバーとしてログインしてください',403);
-    const event=db.prepare('SELECT * FROM seminars WHERE id=?').get(seminarId) as {external_lecturer?:string;lecturer_role?:string;lecturer_name?:string}|undefined;
+    const event=db.prepare('SELECT * FROM seminars WHERE id=?').get(seminarId) as {external_lecturer?:string;lecturer_role?:string;lecturer_name?:string;speakers?:string|null}|undefined;
     if(!event)throw new TaskError('イベントが見つかりません',404);
     const guest=event.external_lecturer?JSON.parse(event.external_lecturer) as {status:string}:null;
-    const external=guest?.status==='YES'||((!guest||guest.status==='UNDECIDED')&&event.lecturer_role==='EXTERNAL_LECTURER'&&!!event.lecturer_name);
+    const external=(event.speakers?JSON.parse(event.speakers).some((p:{role:string})=>p.role==='EXTERNAL_LECTURER'):false)||guest?.status==='YES'||((!guest||guest.status==='UNDECIDED')&&event.lecturer_role==='EXTERNAL_LECTURER'&&!!event.lecturer_name);
     const legacy=db.prepare(`SELECT t.* FROM event_standard_tasks m JOIN event_tasks t ON t.id=m.task_id WHERE m.seminar_id=? AND m.task_key IN ('biography','photo','abstract_300','abstract_800')`).all(seminarId) as {id:number;title:string;version:number;status:string;description:string;due_date:string|null;assignee_id:number|null;important:number}[];
     const untouchedTitles=['外部講師への略歴の依頼','外部講師へのプロフィール写真の依頼','外部講師への抄録300文字の依頼','外部講師への抄録800文字の依頼'];
     const mailExists=!!db.prepare("SELECT name FROM sqlite_master WHERE name='event_task_mail'").get();

@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       session_delivery_methods: body.session_delivery_methods === undefined ? {} : body.session_delivery_methods,
       repeat_fees: body.repeat_fees === undefined ? {dental_hygienist:null,dentist:null,other:null} : body.repeat_fees,
       event_times: body.event_times === undefined ? {} : body.event_times,
+      speakers:body.speakers,
       lecturer_role: body.lecturer_role ?? null,
       external_lecturer:body.external_lecturer,
       external_payment:body.external_payment,
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       abstract_800_requested: Boolean(body.abstract_800_requested),
       receipt_issued: Boolean(body.receipt_issued),
       notes: body.notes ?? '',
-    });standard.initialize(event.id,actor.id);return event;},body.registration,actor.id);
+    },actor.id);standard.initialize(event.id,actor.id);return event;},body.registration,actor.id);
     return NextResponse.json(seminar, { status: 201 });
   } catch (error) {
     if (error instanceof TaskError) return NextResponse.json({ error: error.message }, { status: error.status });
