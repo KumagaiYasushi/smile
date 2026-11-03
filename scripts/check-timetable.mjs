@@ -99,34 +99,47 @@ async function login(page, password, email = 'member@example.invalid') {
 
 for(const [name,viewport] of [['timetable-desktop',{width:1280,height:900}],['timetable-mobile',{width:390,height:844}]])await harness(name,viewport,async({page,password,step,layout,screenshot})=>{
   await login(page,password);await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
-  const response=await page.request.post(`${base}/api/seminars`,{headers:{Origin:base},data:{name:'タイムスケジュール検証',occurrence_type:'MULTIPLE',dates:['2027-06-01','2027-06-08'],event_times:{'2027-06-01':{start:'09:00',end:'17:00'}},speakers:[{role:'EXTERNAL_LECTURER',id:null,name:'進行確認用の演者',facility:'検証施設',theme:'歯周基本治療',payment:{travel:1000,honorarium:20000}}]}});assert.equal(response.status(),201);
+  const response=await page.request.post(`${base}/api/seminars`,{headers:{Origin:base},data:{name:'タイムスケジュール検証',occurrence_type:'MULTIPLE',dates:['2027-06-01','2027-06-08'],event_times:{'2027-06-01':{start:'09:00',end:'10:00'}},speakers:[{role:'EXTERNAL_LECTURER',id:null,name:'進行確認用の演者',facility:'検証施設',theme:'歯周基本治療',payment:{travel:1000,honorarium:20000}}]}});assert.equal(response.status(),201);
   const event=await response.json(),endpoint=`${base}/api/seminars/${event.id}/timetable`;
   await step('複数項目と登録演者の講演を追加し時刻を計算',async()=>{
     await page.goto(`${base}/seminars/${event.id}`);await page.getByRole('link',{name:'タイムスケジュール',exact:true}).click();
     await expect(page.getByRole('heading',{name:'タイムスケジュール',exact:true})).toBeVisible();
     const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});
-    await chooser.getByRole('checkbox',{name:'開会の挨拶',exact:true}).check();await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).fill('5');
+    await chooser.getByRole('checkbox',{name:'開会の挨拶',exact:true}).check();await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).fill('');await expect(chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true})).toHaveValue('');await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).pressSequentially('5');
     await chooser.getByRole('checkbox',{name:'休憩',exact:true}).check();await chooser.getByLabel('休憩の所要時間（分）',{exact:true}).fill('10');
     await chooser.getByRole('checkbox',{name:'進行確認用の演者の講演：歯周基本治療',exact:true}).check();await chooser.getByLabel('進行確認用の演者の講演：歯周基本治療の所要時間（分）',{exact:true}).fill('40');
     await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();
     await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toContainText('09:00〜09:05');
     await expect(page.getByRole('listitem',{name:'予定 3',exact:true})).toContainText('09:15〜09:55');
+    await expect(page.getByRole('region',{name:'基本情報の講演時間',exact:true})).toContainText('09:00〜10:00（60分）');
+    await expect(page.getByText('基本情報の終了まで残り5分',{exact:true})).toBeVisible();
     await layout('初期スケジュール');
   });
   await step('並べ替えと所要時間変更で時刻を再計算し重複項目を追加',async()=>{
-    await page.getByRole('listitem',{name:'予定 3',exact:true}).getByRole('button',{name:'上へ',exact:true}).click();
+    const from=page.getByRole('button',{name:'予定 3をドラッグして移動',exact:true}),target=page.getByRole('listitem',{name:'予定 2',exact:true});
+    if(viewport.width>=600){await from.dragTo(target,{targetPosition:{x:30,y:30}});}else{
+      await target.evaluate(el=>el.scrollIntoView({block:'center'}));
+      // Real touch events verify pointer capture and touch dragging, not synthetic DOM handlers.
+      const a=await from.boundingBox(),b=await target.boundingBox();assert.ok(a&&b);
+      const cdp=await page.context().newCDPSession(page);const x=a.x+a.width/2,y=a.y+a.height/2;
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+      for(let i=1;i<=10;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+(b.x+30-x)*i/10,y:y+(b.y+30-y)*i/10}]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();
+    }
     await expect(page.getByRole('listitem',{name:'予定 2',exact:true})).toContainText('09:05〜09:45');
-    await page.getByRole('listitem',{name:'予定 2',exact:true}).getByLabel('所要時間（分）',{exact:true}).fill('50');
+    const duration=page.getByRole('listitem',{name:'予定 2',exact:true}).getByLabel('所要時間（分）',{exact:true});await duration.fill('');await expect(duration).toHaveValue('');await duration.pressSequentially('50');await expect(duration).toHaveValue('50');
+    const editedTitle=page.getByRole('listitem',{name:'予定 2',exact:true}).getByLabel('項目名',{exact:true});await editedTitle.fill('変更後の講演タイトル');
+    await expect(page.getByText('基本情報の終了時刻を5分超過',{exact:true})).toBeVisible();
     await expect(page.getByRole('listitem',{name:'予定 3',exact:true})).toContainText('09:55〜10:05');
     const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});await chooser.getByRole('checkbox',{name:'休憩',exact:true}).check();await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();
     await expect(page.getByRole('listitem',{name:'予定 4',exact:true})).toContainText('10:05〜10:15');
     await page.getByRole('listitem',{name:'予定 4',exact:true}).getByRole('button',{name:'削除',exact:true}).click();
     await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('タイムスケジュールを保存しました');
-    const saved=await (await page.request.get(endpoint)).json();assert.deepEqual(saved.days[0].items.map(p=>p.type),['OPENING','LECTURE','BREAK']);assert.equal(saved.days[0].items[1].minutes,50);assert.ok(!JSON.stringify(saved).includes('honorarium'));
+    const saved=await (await page.request.get(endpoint)).json();assert.deepEqual(saved.days[0].items.map(p=>p.type),['OPENING','LECTURE','BREAK']);assert.equal(saved.days[0].items[1].minutes,50);assert.equal(saved.days[0].items[1].title,'変更後の講演タイトル');assert.ok(!JSON.stringify(saved).includes('honorarium'));
     await screenshot('timetable');
   });
   await step('日別の保持・再取得・競合と保存失敗時の入力保持',async()=>{
-    await page.reload();await expect(page.getByRole('listitem',{name:'予定 2',exact:true})).toContainText('09:05〜09:55');
+    await page.reload();await expect(page.getByRole('listitem',{name:'予定 2',exact:true})).toContainText('09:05〜09:55');await expect(page.getByRole('listitem',{name:'予定 2',exact:true}).getByLabel('項目名',{exact:true})).toHaveValue('変更後の講演タイトル');
     await page.getByLabel('対象の日程',{exact:true}).selectOption('1');await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toHaveCount(0);
     await page.getByLabel('対象の日程',{exact:true}).selectOption('0');
     const current=await (await page.request.get(endpoint)).json();assert.equal((await page.request.put(endpoint,{headers:{Origin:base},data:{version:current.version,days:current.days}})).status(),200);

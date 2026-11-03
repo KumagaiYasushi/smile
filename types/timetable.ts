@@ -1,3 +1,4 @@
+import type {EventTimes} from './event-schedule.ts';
 import {TaskError,parseVersion} from './task.ts';
 import {requireDate} from './task-template.ts';
 export const TIMETABLE_TYPES={OPENING:'開会の挨拶',GREETING:'挨拶',BREAK:'休憩',LECTURE:'講演',CLOSING:'閉会の挨拶',SPONSOR_CM:'協賛CM'} as const;
@@ -6,7 +7,7 @@ export type TimetableItem={id:string;type:TimetableType;title:string;minutes:num
 export type TimetableDay={date:string|null;start:string;items:TimetableItem[]};
 export type Timetable={version:number;days:TimetableDay[]};
 export type LectureChoice={key:string;name:string;theme:string};
-export type TimetableData=Timetable & {event_dates:string[];lectures:LectureChoice[]};
+export type TimetableData=Timetable & {event_dates:string[];event_times:EventTimes;lectures:LectureChoice[]};
 export function timeMinutes(time:string){const [h,m]=time.split(':').map(Number);return h*60+m;}
 export function clockText(minutes:number){if(!Number.isFinite(minutes))return '—';return `${minutes>=1440?'翌日 ':''}${String(Math.floor(minutes/60)%24).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;}
 export function timetableRows(day:TimetableDay){let minute=timeMinutes(day.start);return day.items.map(item=>{const start=minute;minute+=item.minutes;return {...item,start:clockText(start),end:clockText(minute)};});}
@@ -34,4 +35,9 @@ export function parseTimetable(value:unknown):Timetable {
     return {date,start:day.start,items};
   });
   if(count>1000)throw new TaskError('項目はイベント全体で1000件以内にしてください');return {version,days};
+}
+
+export function timetableWindow(day:TimetableDay,range:{start:string;end:string|null}|undefined){
+  const total=day.items.reduce((sum,p)=>sum+p.minutes,0),start=timeMinutes(day.start),end=start+total;
+  return {total,end,beforeStart:range?start<timeMinutes(range.start):false,remaining:range?.end&&Number.isFinite(end)?timeMinutes(range.end)-end:null,available:range?.end?timeMinutes(range.end)-timeMinutes(range.start):null};
 }

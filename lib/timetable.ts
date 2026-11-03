@@ -12,7 +12,7 @@ export function createTimetableStore(db:Database.Database){
     const dates=event.dates.length?[...event.dates].sort():[null];
     const days:TimetableData['days']=row?JSON.parse(row.days_json):[];
     for(const date of dates)if(!days.some(p=>p.date===date))days.push({date,start:date?event.event_times[date]?.start??'09:00':'09:00',items:[]});
-    return {version:row?.version??0,days,event_dates:event.dates,lectures:eventSpeakers(event).map(p=>({key:`${p.role}:${p.id??p.name}`,name:p.name,theme:p.theme}))};
+    return {version:row?.version??0,days,event_dates:event.dates,event_times:event.event_times,lectures:eventSpeakers(event).map(p=>({key:`${p.role}:${p.id??p.name}`,name:p.name,theme:p.theme}))};
   }
   return {read,save(event:Seminar,value:unknown,actorId:number):TimetableData{return db.transaction(()=>{
     if(!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId))throw new TaskError('有効な運営メンバーとしてログインしてください',403);
