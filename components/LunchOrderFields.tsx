@@ -2,7 +2,7 @@
 import {useRef} from 'react';
 import {lunchCost,lunchTargets,lunchQuantities,withLunchQuantities,LUNCH_TARGET_LABELS,LUNCH_STATUS_LABELS} from '@/types/lunch';
 import type {LunchInput,LunchTarget,LunchStatus,LunchCounts} from '@/types/lunch';
-export const LUNCH_QUANTITY_LABELS:Record<LunchTarget,string>={LECTURER:'講師のオーダー個数',EXTERNAL_LECTURER:'外来講師のオーダー個数',SUPPORT:'サポートメンバーのオーダー個数',PARTICIPANT:'参加者のオーダー個数',OTHER:'その他のオーダー個数'};
+export const LUNCH_QUANTITY_LABELS:Record<LunchTarget,string>={LECTURER:'講師のオーダー個数',EXTERNAL_LECTURER:'外部講師のオーダー個数',SUPPORT:'サポートメンバーのオーダー個数',PARTICIPANT:'参加者のオーダー個数',OTHER:'その他のオーダー個数'};
 const input='mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2 text-sm';
 export default function LunchOrderFields({data,dates,isNew,onChange,getCounts}:{data:LunchInput;dates:string[];isNew:boolean;onChange:(data:LunchInput)=>void;getCounts:(date:string|null)=>LunchCounts}) {
   const manual=useRef(new Set<LunchTarget>());
@@ -24,11 +24,11 @@ export default function LunchOrderFields({data,dates,isNew,onChange,getCounts}:{
         onChange(withLunchQuantities(data,selected,{...quantities,[target]:e.target.checked?counts[target]:quantities[target]??null}));
       }}/>{label}</label>;
     })}</div></fieldset>
-    <div aria-label="登録人数の参考値" className="rounded-lg bg-white p-3 text-sm text-slate-600">出席登録の講師：{counts.LECTURER}名／サポート：{counts.SUPPORT}名<br/>参加者名簿：{counts.PARTICIPANT}名／外来講師：{counts.EXTERNAL_LECTURER}名</div>
+    <div aria-label="登録人数の参考値" className="rounded-lg bg-white p-3 text-sm text-slate-600">出席登録の講師：{counts.LECTURER}名／サポート：{counts.SUPPORT}名<br/>参加者名簿：{counts.PARTICIPANT}名／外部講師：{counts.EXTERNAL_LECTURER}名</div>
     <div className="grid gap-3 sm:grid-cols-2">{targets.map(target=><label key={target} className="block min-w-0 text-sm">{LUNCH_QUANTITY_LABELS[target]}<input aria-label={LUNCH_QUANTITY_LABELS[target]} type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={quantities[target]??''} onChange={e=>{manual.current.add(target);onChange(withLunchQuantities(data,targets,{...quantities,[target]:e.target.value===''?null:Number(e.target.value)}));}} className={input}/></label>)}</div>
     <p className="text-sm font-medium">オーダー合計：{data.quantity===null?'未定':`${data.quantity.toLocaleString()}個`}</p>
     <button type="button" onClick={reflect} className="text-sm text-sky-800 underline">出席登録・参加者数を個数に反映</button>
-    <p className="text-xs text-slate-500">午前のみ・午後のみを含む出席人数を、追加時の初期値にします。参加者は名簿の登録人数（新規イベントは0名）、外来講師は「あり」の選択を使います。個数は自由に編集でき、出欠を変更しても手入力を上書きしません。</p>
+    <p className="text-xs text-slate-500">午前のみ・午後のみを含む出席人数を、追加時の初期値にします。参加者は名簿の登録人数（新規イベントは0名）、外部講師は「あり」の選択を使います。個数は自由に編集でき、出欠を変更しても手入力を上書きしません。</p>
     <label className="block text-sm">メモ<textarea aria-label="メモ" maxLength={1000} rows={2} value={data.target_details} onChange={e=>change({target_details:e.target.value})} className={input}/></label>
     <div className="grid gap-3 sm:grid-cols-2">{([['unit_price','1食あたりの費用（円）'],['additional_cost','送料などの追加費用（円）']] as const).map(([key,label])=><label key={key} className="block min-w-0 text-sm">{label}<input aria-label={label} type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={data[key]??''} onChange={e=>change({[key]:e.target.value===''?null:Number(e.target.value)})} className={input}/></label>)}</div>
     <p className="text-sm">合計費用：{cost===null?'未定':`¥${cost.toLocaleString()}`}</p>

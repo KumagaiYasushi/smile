@@ -76,7 +76,7 @@ export function createStaffAttendanceStore(db: Database.Database) {
     if (Object.keys(body).some(key => !['name', 'role', 'responses', 'schedule'].includes(key))) throw new TaskError('変更できない項目が含まれています');
     schedule(body.schedule, dates);
     if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 200) throw new TaskError('氏名は1〜200文字で入力してください');
-    if (typeof body.role !== 'string' || !Object.hasOwn(legacyImport ? STAFF_ROLE_LABELS : STAFF_SELECTABLE_ROLE_LABELS, body.role)) throw new TaskError('外来講師・研究会講師・研究会サポートメンバーから選択してください');
+    if (typeof body.role !== 'string' || !Object.hasOwn(legacyImport ? STAFF_ROLE_LABELS : STAFF_SELECTABLE_ROLE_LABELS, body.role)) throw new TaskError('外部講師・研究会講師・研究会サポートメンバーから選択してください');
     const values = object(body.responses);
     const keys = attendanceDateKeys(dates);
     if (Object.keys(values).length !== keys.length || keys.some(key => !Object.hasOwn(values, key))) throw new TaskError('各開催日の出欠予定を指定してください');

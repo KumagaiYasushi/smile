@@ -4,7 +4,7 @@ export async function smokeExternalLunch(client) {
   const initial=await json(directory);
   assert.deepEqual(initial.lecturers.map(p=>[p.name,p.facility]).sort(),[['長谷剛志','能登総合病院'],['橋本二郎','東京大学生物学講座']].sort());
   await client.request('/external-lecturers');
-  const body={name:'架空の外来講師',facility:'架空の勤務施設',active:true};
+  const body={name:'架空の外部講師',facility:'架空の勤務施設',active:true};
   await client.request(directory,'POST',body,403,{Origin:'https://untrusted.invalid'});
   let person=await json(directory,'POST',body,201);
   await client.request(directory,'POST',body,409);
@@ -12,7 +12,7 @@ export async function smokeExternalLunch(client) {
   const ids=[],date='2027-11-01';
   try{
     for(const event_type of ['BASIC_COURSE','LECTURE','SEMINAR']){
-      const event=await json('/api/seminars','POST',{name:'架空の外来講師・昼食検証',event_type,occurrence_type:'SINGLE',dates:[date],session_delivery_methods:{[date]:'ONSITE'},external_lecturer:{status:'YES',id:person.id,name:'forged',facility:'forged'},generate_tasks:false},201);
+      const event=await json('/api/seminars','POST',{name:'架空の外部講師・昼食検証',event_type,occurrence_type:'SINGLE',dates:[date],session_delivery_methods:{[date]:'ONSITE'},external_lecturer:{status:'YES',id:person.id,name:'forged',facility:'forged'},generate_tasks:false},201);
       ids.push(event.id);const path=`/api/seminars/${event.id}`;
       assert.equal(event.external_lecturer.name,person.name);assert.equal(event.external_lecturer.facility,person.facility);
       for(const [name,role,status]of [['架空講師','SOCIETY_LECTURER','ATTENDING'],['架空サポート','SOCIETY_SUPPORT','ATTENDING'],['架空欠席者','SOCIETY_SUPPORT','ABSENT']])await json(`${path}/staff-attendance`,'POST',{name,role,responses:{[date]:status},schedule:[date]},201);

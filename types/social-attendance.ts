@@ -1,7 +1,7 @@
 import {TaskError} from './task.ts';
 import type {SocietyMember} from './society-member.ts';
 import type {ExternalSelection} from './external-lecturer.ts';
-export const SOCIAL_ATTENDANCE_ROLES={SOCIETY_LECTURER:'研究会講師',SOCIETY_SUPPORT:'研究会サポートメンバー',EXTERNAL_LECTURER:'外来講師',OTHER:'その他'} as const;
+export const SOCIAL_ATTENDANCE_ROLES={SOCIETY_LECTURER:'研究会講師',SOCIETY_SUPPORT:'研究会サポートメンバー',EXTERNAL_LECTURER:'外部講師',OTHER:'その他'} as const;
 export type SocialAttendee={key:string;role:keyof typeof SOCIAL_ATTENDANCE_ROLES;member_id:number|null;name:string;facility:string;response:'ATTENDING'|'ABSENT'|null};
 export function parseSocialAttendance(value:unknown):SocialAttendee[] {
   if(value===undefined)return [];

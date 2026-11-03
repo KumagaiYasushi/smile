@@ -37,7 +37,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
       });
       ids.push(event.id);
       staff.importNames(event.id, { schedule: example.dates }, actorId);
-      staff.create(event.id, { name: '【架空】外来講師B', role: 'EXTERNAL_LECTURER', schedule: example.dates,
+      staff.create(event.id, { name: '【架空】外部講師B', role: 'EXTERNAL_LECTURER', schedule: example.dates,
         responses: Object.fromEntries(example.dates.map(date => [date, 'TENTATIVE'])) }, actorId);
       for (const target of ['LECTURER', 'EXTERNAL_LECTURER', 'SUPPORT'] as const) lunch.create(event.id, {
         target, date: example.dates[0], schedule: example.dates, quantity: 1, unit_price: 1200, additional_cost: 0,

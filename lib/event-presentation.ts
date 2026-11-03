@@ -7,7 +7,7 @@ export function eventAttendanceText(event: Pick<Seminar, 'delivery_method' | 've
   const perDate=event.dates?.length&&event.dates.some(date=>event.session_delivery_methods?.[date]);
   const method=perDate?`■ 開催方法\n${[...event.dates!].sort().map(date=>`${event.name?eventSessionDateText({...event,name:event.name,dates:event.dates??[]},date):formatEventDate(date,event.event_times)}：${deliveryMethodLabel(eventMethodForDate(event,date))}`).join('\n')}`:`■ 開催方法\n${deliveryMethodLabel(event.delivery_method)}`;
   const onsite=perDate?event.dates!.some(date=>eventMethodForDate(event,date)!=='ONLINE'):event.delivery_method!=='ONLINE';
-  const external=event.external_lecturer?.status==='YES'?`\n\n■ 外来講師\n${event.external_lecturer.name}\n${event.external_lecturer.facility}`:'';
+  const external=event.external_lecturer?.status==='YES'?`\n\n■ 外部講師\n${event.external_lecturer.name}\n${event.external_lecturer.facility}`:'';
   return (onsite?`${method}\n\n■ 会場\n${event.venue||'（未定）'}`:method)+external;
 }
 export function eventFeeText(event:Pick<Seminar,'fee_dental_hygienist'|'fee_dentist'|'fee_other'> & Partial<Pick<Seminar,'occurrence_type'|'repeat_fees'>>) {

@@ -156,9 +156,9 @@ export default function SeminarDetailPage({ params }: Props) {
                   <p className="text-slate-700 whitespace-pre-wrap">{seminar.content}</p>
                 </Row>
               )}
-              <Row label="外来講師">{seminar.external_lecturer.status==='YES'?<>{seminar.external_lecturer.name}<br/>{seminar.external_lecturer.facility||'勤務施設未設定'}</>:seminar.external_lecturer.status==='NO'?'なし':'未設定'}</Row>
+              <Row label="外部講師">{seminar.external_lecturer.status==='YES'?<>{seminar.external_lecturer.name}<br/>{seminar.external_lecturer.facility||'勤務施設未設定'}</>:seminar.external_lecturer.status==='NO'?'なし':'未設定'}</Row>
               <Row label="演者・テーマ">{eventSpeakers(seminar).map((p,i)=><div key={i} className="whitespace-pre-wrap">{p.name}（{SPEAKER_ROLES[p.role]}）{p.facility&&` / ${p.facility}`}<br/>{p.theme||'テーマ未設定'}</div>)}</Row>
-              {seminar.speakers==null&&<Row label="講師">{seminar.lecturer_name || <span className="text-slate-400">未設定</span>}{seminar.lecturer_role && <span className="ml-2 text-sm text-slate-500">（{seminar.lecturer_role === 'EXTERNAL_LECTURER' ? '外来講師' : '研究会講師'}）</span>}</Row>}
+              {seminar.speakers==null&&<Row label="講師">{seminar.lecturer_name || <span className="text-slate-400">未設定</span>}{seminar.lecturer_role && <span className="ml-2 text-sm text-slate-500">（{seminar.lecturer_role === 'EXTERNAL_LECTURER' ? '外部講師' : '研究会講師'}）</span>}</Row>}
               <Row label="サポート">
                 {seminar.assistant_members.length === 0 ? (
                   <span className="text-slate-400">未設定</span>
@@ -190,8 +190,9 @@ export default function SeminarDetailPage({ params }: Props) {
             </dl>
           </Card>
 
-          <Card title="外来講師への支払い設定">
-            <dl className="space-y-3"><Row label="お車代">{seminar.external_payment.travel===null?'未定':`¥${seminar.external_payment.travel.toLocaleString()}`}</Row><Row label="謝礼">{seminar.external_payment.honorarium===null?'未定':`¥${seminar.external_payment.honorarium.toLocaleString()}`}</Row></dl>
+          <Card title="外部講師への支払い設定">
+            {eventSpeakers(seminar).filter(p=>p.role==='EXTERNAL_LECTURER').map((p,i)=><section key={i} className="mb-4 space-y-2"><h3 className="font-bold">{p.name}</h3><dl className="space-y-2"><Row label="お車代">{p.payment?.travel==null?'未定':formatCurrency(p.payment.travel)}</Row><Row label="謝礼">{p.payment?.honorarium==null?'未定':formatCurrency(p.payment.honorarium)}</Row></dl></section>)}
+            {!eventSpeakers(seminar).some(p=>p.role==='EXTERNAL_LECTURER')&&<p className="text-sm text-slate-500">外部講師の登録はありません。</p>}
           </Card>
           <Card title="懇親会">
             <SocialGatheringDetails value={seminar.social_gathering}/>

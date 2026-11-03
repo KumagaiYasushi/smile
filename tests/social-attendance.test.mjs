@@ -6,7 +6,7 @@ import {parseSocialGathering,emptySocialPlan,emptySocialGathering,mergeSocialGat
 import {resolveSocialAttendance} from '../lib/social-attendance.ts';
 import {createSocietyMemberStore} from '../lib/society-members.ts';
 const person={key:'society-1',role:'SOCIETY_LECTURER',member_id:1,name:'選択名',facility:'',response:'ATTENDING'};
-const external={status:'YES',id:20,name:'外来講師の記録名',facility:'施設の記録名'};
+const external={status:'YES',id:20,name:'外部講師の記録名',facility:'施設の記録名'};
 const make=(attendees,id='plan-1')=>({...emptySocialPlan('ON_DAY',id),attendees});
 const social=plans=>({...emptySocialGathering(),status:'HELD',timings:['ON_DAY'],gatherings:plans});
 test('social attendance stores independent answers and multiple other guests, preserving unanswered and hidden plans',()=>{
@@ -24,7 +24,7 @@ test('new directory choices resolve server snapshots and archived saved guests r
   const db=new Database(':memory:');try{
     const directory=createSocietyMemberStore(db),member=directory.list().find(p=>p.role==='SOCIETY_LECTURER');
     const supplied={...person,member_id:member.id,name:'偽の氏名'};
-    const guest={key:'external-20',role:'EXTERNAL_LECTURER',member_id:20,name:'偽の外来講師',facility:'偽の施設',response:null};
+    const guest={key:'external-20',role:'EXTERNAL_LECTURER',member_id:20,name:'偽の外部講師',facility:'偽の施設',response:null};
     const saved=resolveSocialAttendance(db,parseSocialGathering(social([make([supplied,guest])])),external);
     assert.equal(saved.gatherings[0].attendees[0].name,member.name);assert.equal(saved.gatherings[0].attendees[1].name,external.name);
     db.prepare('UPDATE society_members SET name=?,active=0 WHERE id=?').run('改名後',member.id);

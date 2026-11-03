@@ -16,7 +16,6 @@ import {useEventRoles} from '@/components/useEventRoles';
 import EventRoleFields from '@/components/EventRoleFields';
 import MeetingFields from '@/components/MeetingFields';
 import {useMeetingDraft} from '@/components/useMeetingDraft';
-import {parseExternalPayment} from '@/types/external-payment';
 import VenuePicker from '@/components/VenuePicker';
 import { emptyRepeatFees, parseRepeatFees,parseSessionMethods } from '@/types/event-options';
 import type { SessionMethods } from '@/types/event-options';
@@ -41,8 +40,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const registration=useEventRegistration(initial?.id);
   const meetings=useMeetingDraft(initial?.id);
   const roles=useEventRoles(initial?.id);
-  const [travel,setTravel]=useState(initial?.external_payment?.travel==null?'':String(initial.external_payment.travel));
-  const [honorarium,setHonorarium]=useState(initial?.external_payment?.honorarium==null?'':String(initial.external_payment.honorarium));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -121,7 +118,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         event_type: eventType,
         delivery_method: methods[validDates[0]]??deliveryMethod,
         external_lecturer: external,
-        external_payment:parseExternalPayment({travel:travel===''?null:Number(travel),honorarium:honorarium===''?null:Number(honorarium)}),
         occurrence_type: occurrence as OccurrenceType,
         session_delivery_methods: methods,
         repeat_fees: repeat,
@@ -157,8 +153,8 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   return (
     <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-4">
       <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-sky-100 bg-white/95 p-3 shadow-sm">
-        <p className="text-sm text-slate-600">必要な項目を開いて入力してください。講師は「演者登録（複数選択可）」で選択します。出欠・昼食・懇親会は登録後にも設定できます。</p>
-        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','演者・テーマ','外来講師','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title} value={title}>{title==='演者・テーマ'?'演者登録（複数選択可）':title}</option>)}</select></label>
+        <p className="text-sm text-slate-600">必要な項目を開いて入力してください。講師は「演者登録（複数名登録可）」で選択します。出欠・昼食・懇親会は登録後にも設定できます。</p>
+        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','演者・テーマ','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title} value={title}>{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</option>)}</select></label>
         <button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=true;})} className="rounded-lg border px-3 py-2 text-sm">すべて開く</button><button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=false;})} className="rounded-lg border px-3 py-2 text-sm">すべて閉じる</button></div>
       </div>
       {error && (
@@ -247,13 +243,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="演者・テーマ"><SpeakerFields value={speakers} onChange={setSpeakers}/></Section>
-
-      <Section title="外来講師">
-        <p className="text-sm text-slate-600">外部講師は「演者・テーマ」で登録してください。お車代・謝礼はイベント全体の金額です。</p>
-        {external.status==='YES'&&<>
-          <div className="grid gap-4 sm:grid-cols-2"><Field label="お車代（円）"><input aria-label="お車代（円）" type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={travel} onChange={e=>setTravel(e.target.value)} className={inputClass}/></Field><Field label="謝礼（円）"><input aria-label="謝礼（円）" type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={honorarium} onChange={e=>setHonorarium(e.target.value)} className={inputClass}/></Field></div><p className="text-xs text-slate-500">空欄は未定、0は0円として保存します。</p>
-        </>}
-      </Section>
 
       <Section title="役割担当">
         {roles.loading&&<p className="text-sm text-slate-500">担当・名簿を読み込み中…</p>}
@@ -366,7 +355,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       {error&&<p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      <p className="text-xs text-slate-500">保存すると、外来講師ありは登壇依頼・資料一括依頼・参加者確認メールの3件、なしは確認メール1件の基本タスクを設定します。期限・担当者は登録後に編集できます。</p>
+      <p className="text-xs text-slate-500">保存すると、外部講師ありは登壇依頼・資料一括依頼・参加者確認メールの3件、なしは確認メール1件の基本タスクを設定します。期限・担当者は登録後に編集できます。</p>
       <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/95 p-3 shadow-sm">
         <button
           type="button"
@@ -390,7 +379,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details data-form-section={title} open={title==='基本情報'} className="scroll-mt-36 rounded-xl border border-slate-200 bg-white p-4">
-      <summary className="cursor-pointer select-none text-slate-700"><h2 className="inline text-base font-bold">{title==='演者・テーマ'?'演者登録（複数選択可）':title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
+      <summary className="cursor-pointer select-none text-slate-700"><h2 className="inline text-base font-bold">{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
       <div className="mt-4 space-y-4">{children}</div>
     </details>
   );

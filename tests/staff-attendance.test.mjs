@@ -22,7 +22,7 @@ function fixture() {
 test('selected external lecturer can be imported without duplicating the research lead; lunch defaults follow dated attendance and participant registry',()=>{
   const {db,store}=fixture();try{
     db.exec('ALTER TABLE seminars ADD COLUMN external_lecturer TEXT;ALTER TABLE seminars ADD COLUMN lecturer_role TEXT');
-    db.prepare('UPDATE seminars SET lecturer_role=?,external_lecturer=? WHERE id=42').run('SOCIETY_LECTURER',JSON.stringify({status:'YES',id:1,name:'架空の外来講師',facility:'架空病院'}));
+    db.prepare('UPDATE seminars SET lecturer_role=?,external_lecturer=? WHERE id=42').run('SOCIETY_LECTURER',JSON.stringify({status:'YES',id:1,name:'架空の外部講師',facility:'架空病院'}));
     assert.equal(getLunchDefaults(db,42)[dates[0]].EXTERNAL_LECTURER,1);
     assert.equal(store.importNames(42,{schedule:dates},1).added,4);
     assert.equal(store.importNames(42,{schedule:dates},1).added,0);

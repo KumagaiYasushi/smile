@@ -13,11 +13,11 @@ export default function ExternalLecturersPage() {
     const member:ExternalLecturer=await apiJson(`/api/external-lecturers${id?`/${id}`:''}`,{method:id?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     setMembers(current=>[...current.filter(p=>p.id!==member.id),member]);setDraft(null);setNotice('保存しました');
   }catch(e){setError(e instanceof Error?e.message:'保存できませんでした');}finally{setBusy(false);}}
-  return <div className="space-y-5"><h1 className="text-2xl font-bold">外来講師リスト</h1>
+  return <div className="space-y-5"><h1 className="text-2xl font-bold">外部講師リスト</h1>
     <p className="text-sm text-slate-600">イベントや出欠予定で選択する氏名と勤務施設名を登録します。ログイン用アカウントとは別の名簿です。氏名を変更しても登録済みイベントの記録は保持します。</p>
     {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}{notice&&<p role="status" className="rounded-lg bg-green-50 p-3">{notice}</p>}
     <div className="flex flex-wrap gap-3"><button disabled={busy||!!draft} onClick={()=>{setError('');setDraft({name:'',facility:'',active:true});}} className="rounded-lg bg-sky-800 px-4 py-2 text-white">＋ 名簿に追加</button><button disabled={busy||!!draft} onClick={reload} className="rounded-lg border px-4 py-2">最新情報を取得</button></div>
-    {draft&&<form aria-label="外来講師の編集" onSubmit={save} className="space-y-4 rounded-xl border bg-white p-5"><fieldset disabled={busy} className="space-y-4">
+    {draft&&<form aria-label="外部講師の編集" onSubmit={save} className="space-y-4 rounded-xl border bg-white p-5"><fieldset disabled={busy} className="space-y-4">
       <label className="block text-sm">氏名<input aria-label="氏名" required maxLength={200} value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} className={input}/></label>
       <label className="block text-sm">勤務施設名<input aria-label="勤務施設名" required maxLength={300} value={draft.facility} onChange={e=>setDraft({...draft,facility:e.target.value})} className={input}/></label>
       <label className="flex gap-2 text-sm"><input type="checkbox" checked={draft.active} onChange={e=>setDraft({...draft,active:e.target.checked})}/>選択候補として利用する</label>

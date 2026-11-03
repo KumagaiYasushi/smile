@@ -14,12 +14,12 @@ test('requested names and facilities seed once; edits/archive persist and existi
     assert.throws(()=>resolveExternalSelection(db,{status:'YES',id:person.id}),{status:400});
     const hidden=resolveExternalSelection(db,{status:'NO'},snapshot);assert.equal(hidden.name,person.name);assert.equal(hidden.status,'NO');
     assert.deepEqual(resolveExternalSelection(db,{status:'YES',id:person.id},hidden),snapshot);
-    assert.deepEqual(resolveExternalSelection(db,{status:'YES',id:null},{status:'YES',id:null,name:'旧記録の外来講師',facility:''}),{status:'YES',id:null,name:'旧記録の外来講師',facility:''});
+    assert.deepEqual(resolveExternalSelection(db,{status:'YES',id:null},{status:'YES',id:null,name:'旧記録の外部講師',facility:''}),{status:'YES',id:null,name:'旧記録の外部講師',facility:''});
   }finally{db.close();}
 });
 test('external directory rejects bad input, duplicate, stale versions and inactive actors; failed audit rolls back',()=>{
   const {db,store}=fixture();try{
-    const body={name:'架空外来講師',facility:'架空施設',active:true},p=store.save(body,1);
+    const body={name:'架空外部講師',facility:'架空施設',active:true},p=store.save(body,1);
     assert.throws(()=>store.save(body,1),{status:409});
     assert.throws(()=>store.save({...body,name:'別人'},2),{status:403});
     assert.throws(()=>store.save({...body,version:99},1,p.id),{status:409});

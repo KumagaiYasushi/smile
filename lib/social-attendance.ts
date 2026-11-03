@@ -12,7 +12,7 @@ export function resolveSocialAttendance(db:Database.Database,value:SocialGatheri
     const saved=current?.gatherings?.find(p=>p.id===plan.id)?.attendees?.find(p=>p.key===person.key&&p.role===person.role&&p.member_id===person.member_id);
     if(saved)return {...saved,response:person.response};
     if(person.role==='EXTERNAL_LECTURER') {
-      if(external.status!=='YES'||external.id!==person.member_id||!external.name)throw new TaskError('懇親会の外来講師を選び直してください');
+      if(external.status!=='YES'||external.id!==person.member_id||!external.name)throw new TaskError('懇親会の外部講師を選び直してください');
       return {...person,name:external.name,facility:external.facility};
     }
     const member=members.get(person.member_id!);

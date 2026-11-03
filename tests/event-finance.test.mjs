@@ -33,3 +33,10 @@ test('on-day gathering dates default chronologically and retain editable date-on
   assert.equal(socialTotal({participants:10,fee:5000}),'50000');assert.equal(socialTotal({participants:0,fee:0}),'0');assert.equal(socialTotal({participants:null,fee:5000}),null);
   assert.throws(()=>parseSocialGathering({...saved,gatherings:[{...first,start_date:'2027-02-30'}]}),{status:400});assert.throws(()=>parseSocialGathering({...saved,gatherings:[{...first,start_at:'2027-06-02T18:00'}]}),{status:400});
 });
+
+test('per-speaker payments sum once and known amounts remain in expenses when another speaker is undecided',()=>{
+  const speakers=[{role:'EXTERNAL_LECTURER',id:1,name:'講師A',facility:'',theme:'',payment:{travel:1000,honorarium:10000}},{role:'EXTERNAL_LECTURER',id:2,name:'講師B',facility:'',theme:'',payment:{travel:null,honorarium:20000}}];
+  const estimate=buildEventEstimate({...event,speakers},[],[],emptyFinance());
+  assert.equal(estimate.travel,null);assert.equal(estimate.honorarium,30000);assert.equal(estimate.expenses,'41000');assert.ok(estimate.unknown.includes('お車代'));
+  assert.equal(buildEventEstimate({...event,speakers:[]},[],[],emptyFinance()).expenses,'10000');
+});

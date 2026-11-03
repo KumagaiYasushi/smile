@@ -1,7 +1,7 @@
 import { TaskError } from './task.ts';
 import { requireDate } from './task-template.ts';
 
-export const LUNCH_TARGET_LABELS = { LECTURER: '講師', EXTERNAL_LECTURER: '外来講師', SUPPORT: 'サポートメンバー', PARTICIPANT: '参加者', OTHER: 'その他' } as const;
+export const LUNCH_TARGET_LABELS = { LECTURER: '講師', EXTERNAL_LECTURER: '外部講師', SUPPORT: 'サポートメンバー', PARTICIPANT: '参加者', OTHER: 'その他' } as const;
 export const LUNCH_STATUS_LABELS = { UNDECIDED: '未定', PLANNED: '手配予定', ORDERED: '注文済み', CANCELLED: '中止' } as const;
 export type LunchTarget = keyof typeof LUNCH_TARGET_LABELS;
 export type LunchStatus = keyof typeof LUNCH_STATUS_LABELS;

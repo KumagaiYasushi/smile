@@ -16,7 +16,7 @@ export function createExternalLecturerStore(db:Database.Database) {
     return db.transaction(()=>{
       if(!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId))throw new TaskError('有効な運営メンバーとしてログインしてください',403);
       const data=parseExternalLecturer(value),current=id?list().find(p=>p.id===id):undefined;
-      if(id&&!current)throw new TaskError('外来講師が見つかりません',404);
+      if(id&&!current)throw new TaskError('外部講師が見つかりません',404);
       if(current&&parseVersion((value as {version?:unknown}).version)!==current.version)throw new TaskError('別の操作で更新されています。最新情報を取得してください',409);
       if(db.prepare('SELECT id FROM external_lecturers WHERE name=? AND facility=? AND id!=?').get(data.name,data.facility,id??0))throw new TaskError('同じ氏名・勤務施設が登録されています',409);
       if(current)db.prepare('UPDATE external_lecturers SET name=?,facility=?,active=?,version=version+1 WHERE id=?').run(data.name,data.facility,+data.active,id);
@@ -28,13 +28,13 @@ export function createExternalLecturerStore(db:Database.Database) {
   }};
 }
 export function resolveExternalSelection(db:Database.Database,value:unknown,current:ExternalSelection=emptyExternal()):ExternalSelection {
-  if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('外来講師の選択形式が不正です');
+  if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('外部講師の選択形式が不正です');
   const input=value as Record<string,unknown>;
-  if(Object.keys(input).some(key=>!['status','id','name','facility'].includes(key))||!['YES','NO','UNDECIDED'].includes(input.status as string))throw new TaskError('外来講師のあり・なしを選択してください');
+  if(Object.keys(input).some(key=>!['status','id','name','facility'].includes(key))||!['YES','NO','UNDECIDED'].includes(input.status as string))throw new TaskError('外部講師のあり・なしを選択してください');
   if(input.status!=='YES')return {...current,status:input.status as 'NO'|'UNDECIDED'};
   if(input.id===current.id&&current.name)return {...current,status:'YES'};
-  if(typeof input.id!=='number'||!Number.isSafeInteger(input.id)||input.id<1)throw new TaskError('外来講師をリストから選択してください');
+  if(typeof input.id!=='number'||!Number.isSafeInteger(input.id)||input.id<1)throw new TaskError('外部講師をリストから選択してください');
   const person=createExternalLecturerStore(db).list().find(p=>p.id===input.id);
-  if(!person||!person.active)throw new TaskError('利用中の外来講師をリストから選択してください');
+  if(!person||!person.active)throw new TaskError('利用中の外部講師をリストから選択してください');
   return {status:'YES',id:person.id,name:person.name,facility:person.facility};
 }

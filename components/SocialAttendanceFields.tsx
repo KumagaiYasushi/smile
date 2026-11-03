@@ -22,7 +22,7 @@ export default function SocialAttendanceFields({planId,value,members,external,on
         </fieldset>
         {role==='OTHER'&&<button type="button" onClick={()=>onChange(people.filter(p=>p.key!==person.key))} className="mt-2 text-sm text-red-700 underline">この参加者を削除</button>}
       </li>)}</ul>
-      {!people.some(p=>p.role===role)&&<p className="text-xs text-slate-500">{role==='EXTERNAL_LECTURER'?'イベントの外来講師欄で「あり」を選び、講師を選択すると表示します。':'登録者はいません。'}</p>}
+      {!people.some(p=>p.role===role)&&<p className="text-xs text-slate-500">{role==='EXTERNAL_LECTURER'?'イベントの外部講師欄で「あり」を選び、講師を選択すると表示します。':'登録者はいません。'}</p>}
     </div>)}
     <button type="button" disabled={people.length>=1000} onClick={()=>onChange([...people,{key:`other-${crypto.randomUUID()}`,role:'OTHER',member_id:null,name:'',facility:'',response:null}])} className="rounded-lg border border-sky-300 bg-white px-4 py-2 text-sm text-sky-800">＋ その他の参加者を追加</button>
     <p className="text-xs text-slate-500">上の参加人数は手入力のまま保持します。名簿の出席人数はこの欄で確認できます。</p>

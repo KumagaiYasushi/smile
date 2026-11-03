@@ -104,12 +104,18 @@ await harness('speaker-selection-task-mail', {width:390,height:844}, async ({pag
     await page.getByLabel('セミナー名',{exact:false}).fill('複数演者選択の検証');
     await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
     await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
-    await expect(page.getByRole('heading',{name:'演者登録（複数選択可）',exact:true})).toBeVisible();
-    const selector=page.getByRole('group',{name:'名簿から演者を複数選択',exact:true});
-    for(const [role,count] of [['EXTERNAL_LECTURER',2],['SOCIETY_LECTURER',2],['SOCIETY_SUPPORT',1]]){
-      await selector.getByLabel('選択する演者区分').selectOption(role);
-      await expect(selector.getByRole('checkbox').first()).toBeVisible();
-      for(let i=0;i<count;i++)await selector.getByRole('checkbox').nth(i).check();
+    await expect(page.getByRole('heading',{name:'演者登録（複数名登録可）',exact:true})).toBeVisible();
+    await expect(page.getByRole('group',{name:'名簿から演者を複数選択',exact:true})).toHaveCount(0);
+    for(const [i,role] of ['EXTERNAL_LECTURER','EXTERNAL_LECTURER','SOCIETY_LECTURER','SOCIETY_LECTURER','SOCIETY_SUPPORT'].entries()){
+      await page.getByRole('button',{name:'演者を追加',exact:true}).click();
+      const card=page.getByRole('group',{name:`演者 ${i+1}`,exact:true});
+      await card.getByLabel('演者区分',{exact:true}).selectOption(role);
+      await expect(card.getByLabel('名簿から選択').locator('option')).not.toHaveCount(1);
+      await card.getByLabel('名簿から選択').selectOption({index:role==='EXTERNAL_LECTURER'?i+1:role==='SOCIETY_LECTURER'?i-1:1});
+      if(role==='EXTERNAL_LECTURER'){
+        await card.getByLabel('お車代（円）',{exact:true}).fill(String((i+1)*1000));
+        await card.getByLabel('謝礼（円）',{exact:true}).fill(String((i+1)*10000));
+      }
     }
     const section=page.locator('[data-form-section="演者・テーマ"]');
     await expect(section.locator('textarea')).toHaveCount(5);
@@ -118,18 +124,20 @@ await harness('speaker-selection-task-mail', {width:390,height:844}, async ({pag
     await page.getByRole('button',{name:'登録する',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
   });
   const id=new URL(page.url()).pathname.split('/').pop();
-  const saved=await (await page.request.get(`${base}/api/seminars/${id}`)).json();assert.equal(saved.speakers.length,5);
+  const saved=await (await page.request.get(`${base}/api/seminars/${id}`)).json();assert.equal(saved.speakers.length,5);assert.deepEqual(saved.speakers.slice(0,2).map(p=>p.payment),[{travel:1000,honorarium:10000},{travel:2000,honorarium:20000}]);assert.deepEqual(saved.external_payment,{travel:3000,honorarium:30000});
+  const finance=await (await page.request.get(`${base}/api/seminars/${id}/finance`)).json();assert.equal(finance.estimate.travel,3000);assert.equal(finance.estimate.honorarium,30000);
   await step('再編集で演者とテーマを保持し選択解除を反映',async()=>{
     await page.goto(`${base}/seminars/${id}/edit`);
     await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
     const section=page.locator('[data-form-section="演者・テーマ"]');
     await expect(section.locator('textarea').nth(4)).toHaveValue('演者テーマ5');
-    await expect(page.getByRole('heading',{name:'演者登録（複数選択可）',exact:true})).toBeVisible();
-    const selector=page.getByRole('group',{name:'名簿から演者を複数選択',exact:true});
-    await selector.getByLabel('選択する演者区分').selectOption('EXTERNAL_LECTURER');
-    await selector.getByRole('checkbox').first().uncheck();await expect(section.locator('textarea')).toHaveCount(4);
+    await expect(page.getByRole('heading',{name:'演者登録（複数名登録可）',exact:true})).toBeVisible();
+    const first=page.getByRole('group',{name:'演者 1',exact:true}),second=page.getByRole('group',{name:'演者 2',exact:true});
+    await expect(first.getByLabel('お車代（円）',{exact:true})).toHaveValue('1000');
+    await expect(second.getByLabel('謝礼（円）',{exact:true})).toHaveValue('20000');
+    await first.getByRole('button',{name:'演者 1 を削除',exact:true}).click();await expect(section.locator('textarea')).toHaveCount(4);
     await page.getByRole('button',{name:'変更を保存',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
-    const updated=await (await page.request.get(`${base}/api/seminars/${id}`)).json();assert.equal(updated.speakers.length,4);assert.equal(updated.speakers[0].theme,'演者テーマ2');
+    const updated=await (await page.request.get(`${base}/api/seminars/${id}`)).json();assert.equal(updated.speakers.length,4);assert.equal(updated.speakers[0].theme,'演者テーマ2');assert.deepEqual(updated.external_payment,{travel:2000,honorarium:20000});
   });
   await step('保存済みメールを最新タスクの依頼文から再生成し明示保存',async()=>{
     const list=await (await page.request.get(`${base}/api/seminars/${id}/tasks`)).json();const task=list.tasks[0];

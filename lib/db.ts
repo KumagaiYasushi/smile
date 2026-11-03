@@ -1,5 +1,5 @@
 import {resolveSpeakers} from './speakers.ts';
-import {eventSpeakers} from '../types/speaker.ts';
+import {eventSpeakers,speakerPaymentTotal} from '../types/speaker.ts';
 import {resolveSocialAttendance} from './social-attendance.ts';
 import {allowOtherEvents} from './event-type-migration.ts';
 import {emptyExternalPayment,parseExternalPayment} from '../types/external-payment.ts';
@@ -226,7 +226,7 @@ export function createSeminar(input: SeminarInput, actorId?:number): Seminar {
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
     external_lecturer:JSON.stringify(external),
-    external_payment:JSON.stringify(input.external_payment===undefined?emptyExternalPayment():parseExternalPayment(input.external_payment)),
+    external_payment:JSON.stringify(speakers===null?(input.external_payment===undefined?emptyExternalPayment():parseExternalPayment(input.external_payment)):speakerPaymentTotal(speakers)),
     occurrence_type: occurrence,
     event_times: JSON.stringify(times),
     lecturer_role: input.lecturer_role ?? null,
@@ -260,7 +260,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>, actorId?
     ...parseSessionMethods(input.session_delivery_methods,dates),
   };
   const repeatFees=input.repeat_fees===undefined?current.repeat_fees:parseRepeatFees(input.repeat_fees);
-  const speakers=input.speakers===undefined?current.speakers:resolveSpeakers(db,input.speakers,eventSpeakers(current),actorId);
+  const speakers=input.speakers===undefined?(current.speakers==null?current.speakers:eventSpeakers(current)):resolveSpeakers(db,input.speakers,eventSpeakers(current),actorId);
   const guest=speakers?.find(p=>p.role==='EXTERNAL_LECTURER');
   const external=input.speakers!==undefined?(guest?{status:'YES' as const,id:guest.id,name:guest.name,facility:guest.facility}:{...emptyExternal(),status:'NO' as const}):input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer);
   const times = input.event_times === undefined ? current.event_times : {
@@ -285,7 +285,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>, actorId?
     session_delivery_methods: JSON.stringify(methods),
     repeat_fees: JSON.stringify(repeatFees),
     external_lecturer:JSON.stringify(external),
-    external_payment:JSON.stringify(input.external_payment===undefined?current.external_payment:parseExternalPayment(input.external_payment)),
+    external_payment:JSON.stringify(speakers==null?(input.external_payment===undefined?current.external_payment:parseExternalPayment(input.external_payment)):speakerPaymentTotal(eventSpeakers({...current,speakers}))),
     occurrence_type: merged.occurrence_type,
     event_times: JSON.stringify(times),
     lecturer_role: merged.lecturer_role,
