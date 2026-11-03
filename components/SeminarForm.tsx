@@ -350,7 +350,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       {error&&<p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      <p className="text-xs text-slate-500">保存すると、外来講師ありは依頼関連5件と参加者確認メール1件、なしは確認メール1件の基本タスクを設定します。期限・担当者は登録後に編集できます。</p>
+      <p className="text-xs text-slate-500">保存すると、外来講師ありは登壇依頼・資料一括依頼・参加者確認メールの3件、なしは確認メール1件の基本タスクを設定します。期限・担当者は登録後に編集できます。</p>
       <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/95 p-3 shadow-sm">
         <button
           type="button"

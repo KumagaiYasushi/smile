@@ -2,6 +2,8 @@
 
 import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import TaskMailPanel from '@/components/TaskMailPanel';
+import type {TaskMailPhase} from '@/types/task-message';
 import { TASK_STATUS_LABELS, isTaskOverdue } from '@/types/task';
 import type { EventTask, TaskInput, TaskMember, TaskStatus, TaskHistory } from '@/types/task';
 
@@ -111,6 +113,9 @@ function HistoryPanel({ seminarId, taskId, members }: { seminarId: string; taskI
 
 export default function TasksPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const [mail,setMail]=useState<{task_id:number;phase:TaskMailPhase}[]>([]);
+  const [progress,setProgress]=useState<{date:string;text:string}|null>(null);
+  const [syncError,setSyncError]=useState('');
   const [tasks, setTasks] = useState<EventTask[]>([]);
   const [members, setMembers] = useState<TaskMember[]>([]);
   const [seminarName, setSeminarName] = useState('');
@@ -128,15 +133,17 @@ export default function TasksPage({ params }: { params: Promise<{ id: string }> 
   useEffect(() => {
     const controller = new AbortController();
     fetchJson(`/api/seminars/${id}/tasks/initialize`,{method:'POST',signal:controller.signal}).then(()=>Promise.all([fetchJson(`/api/seminars/${id}/tasks`, { signal: controller.signal }), fetchJson('/api/members', { signal: controller.signal }), fetchJson(`/api/seminars/${id}`, { signal: controller.signal })]))
-      .then(([data, directory, seminar]) => { setTasks(data.tasks); setMembers(directory.members); setSeminarName(seminar.name); setLoading(false); })
+      .then(([data, directory, seminar]) => { setTasks(data.tasks);setMail(data.mail??[]);setProgress(data.progress??null); setMembers(directory.members); setSeminarName(seminar.name); setLoading(false); })
       .catch((error) => { if (!controller.signal.aborted) { setError(error.message); setLoading(false); } });
     return () => controller.abort();
   }, [id]);
 
+  async function syncMail(){setSyncError('');try{await fetchJson('/api/gmail/sync',{method:'POST'});const data=await fetchJson(endpoint);setTasks(data.tasks);setMail(data.mail??[]);setProgress(data.progress??null);}catch(e){setSyncError(e instanceof Error?e.message:'送受信を確認できませんでした');}}
+  useEffect(()=>{const controller=new AbortController();let pending=false;const tick=async()=>{if(pending||document.visibilityState==='hidden')return;pending=true;try{await fetchJson('/api/gmail/sync',{method:'POST',signal:controller.signal});}catch(e){if(!controller.signal.aborted)setSyncError(e instanceof Error?e.message:'送受信を確認できませんでした');}try{const data=await fetchJson(`/api/seminars/${id}/tasks`,{signal:controller.signal});if(!controller.signal.aborted){setTasks(data.tasks);setMail(data.mail??[]);setProgress(data.progress??null);}}catch{/* Initial load and refresh report their own errors. */}finally{pending=false;}};const timer=setInterval(tick,60000);return()=>{controller.abort();clearInterval(timer);};},[id]);
   async function refresh() {
     await fetchJson(`${endpoint}/initialize`,{method:'POST'});
     const [data, directory, seminar] = await Promise.all([fetchJson(endpoint), fetchJson('/api/members'), fetchJson(`/api/seminars/${id}`)]);
-    setTasks(data.tasks); setMembers(directory.members); setSeminarName(seminar.name);
+    setTasks(data.tasks);setMail(data.mail??[]);setProgress(data.progress??null); setMembers(directory.members); setSeminarName(seminar.name);
   }
   function edit(task: EventTask | null) { setEditing(task); setNotice(''); setTimeout(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }
   async function save(input: TaskInput) {
@@ -176,12 +183,14 @@ export default function TasksPage({ params }: { params: Promise<{ id: string }> 
     && (focusFilter === 'ALL' || (focusFilter === 'IMPORTANT' && task.important) || (focusFilter === 'OVERDUE' && isTaskOverdue(task)) || (focusFilter === 'UNASSIGNED' && task.assignee_id === null)));
   return <div className="space-y-5">
     <Link href={`/seminars/${id}`} className="text-sm text-sky-700">← イベント詳細へ</Link>
-    <Link href={`/seminars/${id}/reschedule`} className="ml-4 inline-block text-sm text-sky-700 underline">開催日・期限変更</Link>
     <div><h1 className="text-2xl font-bold text-slate-800">タスク・期限管理</h1><p className="mt-1 text-slate-500">{seminarName}</p><p className="mt-2 text-sm text-slate-600">基本タスクはイベント登録・保存時に自動設定します。「タスクを追加」から任意のタスクも作成できます。</p></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
+    {progress&&<section aria-label="準備の進捗コメント" className="space-y-2 rounded-xl border border-sky-200 bg-sky-50 p-4"><h2 className="font-bold">30秒でわかる準備の進捗</h2><p className="text-xs text-slate-500">{progress.date} 更新・タスクと送受信の記録から集計</p><p className="text-sm leading-relaxed">{progress.text}</p><p className="text-xs text-slate-500">表示中は1分ごとに再確認し、日付が変わるとその日のコメントに更新します。</p></section>}
+    {syncError&&<p role="alert" className="text-sm text-red-700">{syncError}</p>}
     <div className="flex flex-wrap gap-3">
       <button disabled={busy || editing !== undefined || !seminarName} onClick={() => edit(null)} className="rounded-lg bg-sky-800 px-4 py-2 font-bold text-white disabled:opacity-50">＋ タスクを追加</button>
+      <button disabled={busy} onClick={syncMail} className="rounded-lg border bg-white px-4 py-2 text-sm">送受信を確認</button>
       <button disabled={busy} onClick={reload} className="rounded-lg border bg-white px-4 py-2 text-sm">最新の内容を取得</button>
     </div>
     <div ref={editorRef}>{editing !== undefined && <TaskEditor key={editing?.id ?? 'new'} initial={editing} members={members} onSave={save} onCancel={() => setEditing(undefined)} />}</div>
@@ -216,6 +225,7 @@ export default function TasksPage({ params }: { params: Promise<{ id: string }> 
         <button onClick={() => setHistoryId(historyId === task.id ? null : task.id)} aria-expanded={historyId === task.id} className="text-sky-700 underline">{historyId === task.id ? '履歴を閉じる' : '変更履歴'}</button>
         <button disabled={busy} onClick={() => remove(task)} className="text-red-700 underline">削除</button>
       </div>
+      <TaskMailPanel eventId={id} taskId={task.id} phase={mail.find(p=>p.task_id===task.id)?.phase} onChange={refresh}/>
       {historyId === task.id && <HistoryPanel seminarId={id} taskId={task.id} members={members} />}
     </article>)}</div>
   </div>;

@@ -3,10 +3,7 @@ import {createTaskStore} from './tasks.ts';
 import {TaskError} from '../types/task.ts';
 export const STANDARD_TASKS=[
   {key:'invitation',title:'外部講師への依頼状',external:true},
-  {key:'biography',title:'外部講師への略歴の依頼',external:true},
-  {key:'photo',title:'外部講師へのプロフィール写真の依頼',external:true},
-  {key:'abstract_300',title:'外部講師への抄録300文字の依頼',external:true},
-  {key:'abstract_800',title:'外部講師への抄録800文字の依頼',external:true},
+  {key:'materials',title:'外部講師への資料一括依頼（略歴・写真・抄録300字・800字）',external:true},
   {key:'participant_confirmation',title:'参加者への確認メール',external:false},
 ] as const;
 export function createStandardTaskStore(db:Database.Database){
@@ -18,14 +15,19 @@ export function createStandardTaskStore(db:Database.Database){
     if(!event)throw new TaskError('イベントが見つかりません',404);
     const guest=event.external_lecturer?JSON.parse(event.external_lecturer) as {status:string}:null;
     const external=guest?.status==='YES'||((!guest||guest.status==='UNDECIDED')&&event.lecturer_role==='EXTERNAL_LECTURER'&&!!event.lecturer_name);
+    const legacy=db.prepare(`SELECT t.* FROM event_standard_tasks m JOIN event_tasks t ON t.id=m.task_id WHERE m.seminar_id=? AND m.task_key IN ('biography','photo','abstract_300','abstract_800')`).all(seminarId) as {id:number;title:string;version:number;status:string;description:string;due_date:string|null;assignee_id:number|null;important:number}[];
+    const untouchedTitles=['外部講師への略歴の依頼','外部講師へのプロフィール写真の依頼','外部講師への抄録300文字の依頼','外部講師への抄録800文字の依頼'];
+    const mailExists=!!db.prepare("SELECT name FROM sqlite_master WHERE name='event_task_mail'").get();
+    const canMerge=legacy.length>0&&legacy.every(t=>t.version===1&&t.status==='NOT_STARTED'&&!t.description&&!t.due_date&&!t.assignee_id&&!t.important&&untouchedTitles.includes(t.title)&&(!mailExists||!db.prepare('SELECT task_id FROM event_task_mail WHERE task_id=?').get(t.id))&&!db.prepare('SELECT task_id FROM task_collaborators WHERE task_id=?').get(t.id));
     let created=0;
     for(const definition of STANDARD_TASKS.filter(task=>!task.external||external)){
       // Keep the marker after task deletion so later saves do not resurrect it.
       if(db.prepare('SELECT task_key FROM event_standard_tasks WHERE seminar_id=? AND task_key=?').get(seminarId,definition.key))continue;
       const existing=tasks.listTasks(seminarId).find(task=>task.title===definition.title);
-      const task=existing??tasks.createTask(seminarId,{title:definition.title},actorId);if(!existing)created++;
+      const task=existing??tasks.createTask(seminarId,{title:definition.title,...(definition.key==='materials'&&legacy.length===4&&legacy.every(p=>p.status==='DONE')?{status:'DONE'}:{})},actorId);if(!existing)created++;
       db.prepare('INSERT INTO event_standard_tasks(seminar_id,task_key,task_id,actor_id) VALUES(?,?,?,?)').run(seminarId,definition.key,task.id,actorId);
     }
+    if(external&&canMerge&&db.prepare("SELECT task_id FROM event_standard_tasks WHERE seminar_id=? AND task_key='materials' AND task_id IS NOT NULL").get(seminarId))for(const task of legacy)tasks.deleteTask(seminarId,task.id,task.version,actorId);
     return {created};
   }).immediate();}};
 }

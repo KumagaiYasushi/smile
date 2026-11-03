@@ -10,9 +10,9 @@ export async function smokeStandardTasks(client,db){
       let tasks=(await json(path)).tasks;assert.deepEqual(tasks.map(p=>p.title),STANDARD_TASKS.filter(p=>!p.external||external).map(p=>p.title));
       assert.ok(tasks.every(p=>p.status==='NOT_STARTED'&&p.due_date===null&&p.assignee_id===null));
       const chosen=tasks[0];await json(`${path}/${chosen.id}`,'PATCH',{title:'利用者による変更',status:'DONE',version:chosen.version});
-      await json(root,'PATCH',{notes:'通常の保存'});tasks=(await json(path)).tasks;assert.equal(tasks.length,external?6:1);assert.ok(tasks.some(p=>p.title==='利用者による変更'&&p.status==='DONE'));
+      await json(root,'PATCH',{notes:'通常の保存'});tasks=(await json(path)).tasks;assert.equal(tasks.length,external?3:1);assert.ok(tasks.some(p=>p.title==='利用者による変更'&&p.status==='DONE'));
       const changed=tasks.find(p=>p.id===chosen.id);await client.request(`${path}/${changed.id}`,'DELETE',{version:changed.version});
-      assert.equal((await json(`${path}/initialize`,'POST')).created,0);assert.equal((await json(path)).tasks.length,external?5:0);
+      assert.equal((await json(`${path}/initialize`,'POST')).created,0);assert.equal((await json(path)).tasks.length,external?2:0);
       await json(path,'POST',{title:'任意の追加タスク'},201);assert.ok((await json(path)).tasks.some(p=>p.title==='任意の追加タスク'));
       await client.request(`${path}/initialize`,'POST',undefined,403,{Origin:'https://untrusted.invalid'});
     }
@@ -23,6 +23,6 @@ export async function smokeStandardTasks(client,db){
     const before=(await json('/api/seminars')).length;
     await client.request('/api/seminars','POST',{name:'保存を取り消すイベント',occurrence_type:'SINGLE',registration:{schedule:[],attendance:[],lunch:[{action:'create',data:{target:'LECTURER',quantity:-1}}]}},400);assert.equal((await json('/api/seminars')).length,before);
     assert.equal(db.prepare('SELECT count(*) n FROM event_standard_tasks WHERE seminar_id NOT IN (SELECT id FROM seminars)').get().n,0);
-    console.log('PASS: six/one standard tasks for all types, initial status, repeated saves, renamed/completed/deleted task preservation, arbitrary tasks, legacy setup, CSRF and atomic rollback');
+    console.log('PASS: three/one standard tasks for all types, initial status, repeated saves, renamed/completed/deleted task preservation, arbitrary tasks, legacy setup, CSRF and atomic rollback');
   }finally{for(const id of ids)await client.request(`/api/seminars/${id}`,'DELETE');}
 }

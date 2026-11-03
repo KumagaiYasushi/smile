@@ -130,31 +130,6 @@ export default function SeminarDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* サブナビゲーション */}
-      <div className="flex gap-2 flex-wrap">
-        <Link href={`/seminars/${id}/finance`} className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-bold text-sky-800">収支見積もり</Link>
-        <Link href={`/seminars/${id}/lunch`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50">昼食の手配</Link>
-        <Link href={`/seminars/${id}/staff-attendance`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50">講師・サポートの出欠予定</Link>
-        <Link href={`/seminars/${id}/reschedule`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50">開催日・期限変更</Link>
-        <Link href={`/seminars/${id}/tasks`} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all">
-          タスク・期限管理
-        </Link>
-        <Link
-          href={`/seminars/${id}/participants`}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all"
-        >
-          <span>👥</span> 参加者名簿
-        </Link>
-        <Link href={`/seminars/${id}/outline`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">開催要項PDF</Link>
-        <Link href={`/seminars/${id}/meetings`} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">打ち合わせ</Link>
-        <Link
-          href={`/seminars/${id}/email-templates`}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 transition-all"
-        >
-          <span>✉️</span> メール文面テンプレート
-        </Link>
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-3">
         {/* 左カラム：基本情報 */}
         <div className="lg:col-span-2 space-y-6">
