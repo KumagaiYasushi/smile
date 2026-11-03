@@ -10,6 +10,8 @@ import type { SocialGathering } from '@/types/social-gathering';
 import SocialGatheringEditor from '@/components/SocialGatheringEditor';
 import {AUDIENCE_LABELS,allAudienceRoles,audienceFromLegacy,audienceText,parseAudienceRoles} from '@/types/audience';
 import type {AudienceRole} from '@/types/audience';
+import {useEventRoles} from '@/components/useEventRoles';
+import EventRoleFields from '@/components/EventRoleFields';
 import MeetingFields from '@/components/MeetingFields';
 import {useMeetingDraft} from '@/components/useMeetingDraft';
 import {parseExternalPayment} from '@/types/external-payment';
@@ -37,6 +39,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const formRef=useRef<HTMLFormElement>(null);
   const registration=useEventRegistration(initial?.id);
   const meetings=useMeetingDraft(initial?.id);
+  const roles=useEventRoles(initial?.id);
   const [travel,setTravel]=useState(initial?.external_payment?.travel==null?'':String(initial.external_payment.travel));
   const [honorarium,setHonorarium]=useState(initial?.external_payment?.honorarium==null?'':String(initial.external_payment.honorarium));
   const [saving, setSaving] = useState(false);
@@ -109,8 +112,9 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       const methods=parseSessionMethods(Object.fromEntries(validDates.map(date=>[date,sessionMethods[date]])),validDates);
       const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
+      const roleChanges=roles.payload();
       await onSubmit({
-        registration: {...(registration.payload(validDates)??{schedule:[...validDates].sort(),attendance:[],lunch:[]}),meetings:meetings.payload()},
+        registration: {...(registration.payload(validDates)??{schedule:[...validDates].sort(),attendance:[],lunch:[]}),meetings:meetings.payload(),...(roleChanges?{roles:roleChanges}: {})},
         event_type: eventType,
         delivery_method: methods[validDates[0]]??deliveryMethod,
         external_lecturer: external,
@@ -151,7 +155,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
     <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-4">
       <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-sky-100 bg-white/95 p-3 shadow-sm">
         <p className="text-sm text-slate-600">必要な項目を開いて入力してください。出欠・昼食・懇親会は登録後にも設定できます。</p>
-        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','外来講師','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title}>{title}</option>)}</select></label>
+        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','外来講師','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title}>{title}</option>)}</select></label>
         <button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=true;})} className="rounded-lg border px-3 py-2 text-sm">すべて開く</button><button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=false;})} className="rounded-lg border px-3 py-2 text-sm">すべて閉じる</button></div>
       </div>
       {error && (
@@ -246,11 +250,18 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </>}
       </Section>
 
+      <Section title="役割担当">
+        {roles.loading&&<p className="text-sm text-slate-500">担当・名簿を読み込み中…</p>}
+        {roles.error&&<p role="alert" className="text-sm text-red-700">{roles.error}</p>}
+        <button type="button" disabled={saving||roles.loading} onClick={roles.reload} className="text-sm text-sky-800 underline">担当・名簿を再取得</button>
+        <EventRoleFields data={roles.data} disabled={saving||roles.loading||!!roles.error} onToggle={roles.toggle}/>
+      </Section>
+
       <Section title="イベント当日の出欠">
         {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}
         {registration.error&&<p role="alert" className="text-sm text-red-700">{registration.error}</p>}
         {!registration.loading&&<button type="button" disabled={saving} onClick={registration.reload} className="text-sm text-sky-800 underline">出欠・昼食を再取得</button>}
-        {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
+        {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading||roles.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
       </Section>
 
       <Section title="打ち合わせ">
@@ -329,7 +340,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="昼食の手配">
-        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading||meetings.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch} getCounts={date=>registration.getLunchCounts(date,external)}/>
+        <RegistrationLunchFields dates={validDates} plans={registration.lunch} disabled={saving||registration.loading||meetings.loading||roles.loading} onAdd={registration.addLunch} onChange={registration.updateLunch} onRemove={registration.removeLunch} getCounts={date=>registration.getLunchCounts(date,external)}/>
         {initial?.id && <Link href={`/seminars/${initial.id}/lunch`} className="inline-block text-sm text-sky-800 underline">昼食の手配を登録・確認する</Link>}
       </Section>
 
@@ -361,7 +372,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </button>
         <button
           type="submit"
-          disabled={saving||registration.loading||meetings.loading}
+          disabled={saving||registration.loading||meetings.loading||roles.loading}
           className="px-6 py-2.5 rounded-lg bg-sky-700 text-white text-sm font-bold hover:bg-sky-600 disabled:opacity-50 transition-colors"
         >
           {saving ? '保存中...' : submitLabel}

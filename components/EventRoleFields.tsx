@@ -1,0 +1,13 @@
+'use client';
+import {PREPARATION_ROLES,EVENT_DAY_ROLES} from '@/types/event-roles';
+import {SOCIETY_ROLE_LABELS} from '@/types/society-member';
+import type {EventRoleKey,RoleAssignmentData,RoleAssignee} from '@/types/event-roles';
+import type {SocietyMember} from '@/types/society-member';
+export default function EventRoleFields({data,disabled,onToggle}:{data:RoleAssignmentData;disabled:boolean;onToggle:(key:EventRoleKey,member:SocietyMember|RoleAssignee)=>void}){
+  return <div className="space-y-5"><p className="text-sm text-slate-600">研究会講師・研究会サポートメンバーから、各役割の担当者を複数選べます。同じ方の兼任も可能です。役割の登録は当日や打ち合わせの出欠には反映しません。</p>
+    {([['準備役割',PREPARATION_ROLES],['当日役割',EVENT_DAY_ROLES]] as const).map(([title,roles])=><section key={title} aria-label={title} className="space-y-3"><h3 className="font-bold text-slate-800">{title}</h3>{Object.entries(roles).map(([key,label])=>{
+      const role=key as EventRoleKey,assigned=data.assignments[role],people=[...data.members,...assigned.filter(p=>!data.members.some(m=>m.id===p.member_id)).map(p=>({id:p.member_id,name:p.name,role:p.role,version:p.member_version,active:false}))];
+      return <details key={key} className="rounded-xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer text-sm"><span className="font-bold">{label}</span><span className="ml-2 text-sky-800">{assigned.length?`${assigned.length}名：${assigned.map(p=>p.name).join('、')}`:'未割当'}</span></summary><fieldset disabled={disabled} aria-label={`${label}の担当者（複数選択可）`} className="mt-3 min-w-0 space-y-3">{(['SOCIETY_LECTURER','SOCIETY_SUPPORT'] as const).map(group=><div key={group}><h4 className="mb-2 text-xs font-bold text-slate-600">{SOCIETY_ROLE_LABELS[group]}</h4><div className="grid gap-2 sm:grid-cols-2">{people.filter(member=>{const saved=assigned.find(p=>p.member_id===member.id);return (member.active||saved)&&(saved?.role??member.role)===group;}).map(member=>{const selected=assigned.find(p=>p.member_id===member.id),name=selected?.name??member.name;return <label key={member.id} className={`flex min-w-0 items-start gap-2 rounded-lg border p-2 text-sm ${selected?'border-sky-200 bg-sky-50':'border-slate-100'}`}><input aria-label={`${name}を担当者に選択`} type="checkbox" checked={!!selected} disabled={!member.active&&!selected} onChange={()=>onToggle(role,selected??member)} className="mt-1"/><span className="break-words">{name}{!member.active&&<span className="ml-1 text-xs text-slate-500">（名簿で利用停止）</span>}{selected&&member.name!==selected.name&&<span className="block text-xs text-slate-500">現在の名簿：{member.name}</span>}</span></label>;})}</div></div>)}</fieldset></details>;
+    })}</section>)}
+  </div>;
+}

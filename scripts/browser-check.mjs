@@ -114,7 +114,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   });
   await step('登録画面の折りたたみ・項目移動・閉じた欄のエラー表示',async()=>{
     await page.goto(`${base}/seminars/new`);
-    const sections=page.locator('details[data-form-section]');await expect(sections).toHaveCount(9);
+    const sections=page.locator('details[data-form-section]');await expect(sections).toHaveCount(10);
     await expect(page.locator('details[data-form-section][open]')).toHaveCount(1);
     const compact=await page.evaluate(()=>document.documentElement.scrollHeight);
     await layout('折りたたみ式イベント登録');await screenshot('compact-registration');
@@ -209,6 +209,32 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
       await expect(page.getByRole('heading',{name,exact:true})).toBeVisible();
     }
     await layout('研究会名簿');
+  });
+  await step('10種類の役割へ講師・サポートの複数登録と兼任・変更・競合',async()=>{
+    await page.goto(`${base}/seminars/new`);await expandEventForm();
+    await page.getByLabel('セミナー名',{exact:false}).fill('UI検証・準備と当日の役割');await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
+    const roleNames=['会場担当','外部講師担当','昼食担当','会計担当','告知WEB担当','協賛担当','受付','総合司会','座長','懇親会'];
+    async function roleGroup(label){const group=page.locator(`fieldset[aria-label="${label}の担当者（複数選択可）"]`);await group.locator('..').evaluate(node=>{node.open=true;});return group;}
+    for(const role of roleNames){const group=await roleGroup(role);for(const name of ['UI検証の架空講師','UI検証の架空サポート'])await group.getByRole('checkbox',{name:`${name}を担当者に選択`,exact:true}).check();}
+    await page.route(`${base}/api/seminars`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'検証用の役割保存エラー'})}),{times:1});
+    await page.getByRole('button',{name:'登録する',exact:true}).click();await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('検証用の役割保存エラー');
+    await expect((await roleGroup('会場担当')).getByRole('checkbox',{name:'UI検証の架空講師を担当者に選択',exact:true})).toBeChecked();
+    await page.getByRole('button',{name:'登録する',exact:true}).click();await expect(page.getByRole('heading',{name:'UI検証・準備と当日の役割',exact:true})).toBeVisible();const sid=Number(new URL(page.url()).pathname.split('/')[2]);
+    const row=db.prepare('SELECT assignments_json FROM event_role_assignments WHERE seminar_id=?').get(sid);assert.ok(row);for(const people of Object.values(JSON.parse(row.assignments_json)))assert.equal(people.length,2);
+    await page.getByRole('link',{name:'役割担当',exact:true}).click();await expect(page.getByRole('heading',{name:'役割担当',exact:true})).toBeVisible();
+    const reception=await roleGroup('受付');await reception.getByRole('checkbox',{name:'UI検証の架空講師を担当者に選択',exact:true}).uncheck();
+    const chair=await roleGroup('座長');await chair.getByRole('checkbox',{name:'UI検証の架空サポートを担当者に選択',exact:true}).uncheck();
+    await page.getByRole('button',{name:'役割担当を保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
+    await page.reload();await expect((await roleGroup('受付')).getByRole('checkbox',{name:'UI検証の架空講師を担当者に選択',exact:true})).not.toBeChecked();await expect((await roleGroup('座長')).getByRole('checkbox',{name:'UI検証の架空講師を担当者に選択',exact:true})).toBeChecked();
+    const mc=await roleGroup('総合司会');await mc.getByRole('checkbox',{name:'UI検証の架空サポートを担当者に選択',exact:true}).uncheck();
+    const data=await (await page.request.get(`${base}/api/seminars/${sid}/roles`)).json();const assignments=Object.fromEntries(Object.entries(data.assignments).map(([key,people])=>[key,people.map(({member_id,member_version})=>({member_id,member_version}))]));assignments.WEB=[];
+    assert.equal((await page.request.put(`${base}/api/seminars/${sid}/roles`,{headers:{Origin:base},data:{version:data.version,assignments}})).status(),200);
+    await page.getByRole('button',{name:'役割担当を保存',exact:true}).click();await expect(page.locator('[role="alert"]:not(#__next-route-announcer__)')).toContainText('別の操作');await expect(mc.getByRole('checkbox',{name:'UI検証の架空サポートを担当者に選択',exact:true})).not.toBeChecked();
+    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'担当・名簿を再取得',exact:true}).click();await expect(mc.getByRole('checkbox',{name:'UI検証の架空サポートを担当者に選択',exact:true})).toBeChecked();
+    await layout('イベントの役割担当');await screenshot('event-roles');
+    await page.goto(`${base}/seminars/${sid}/edit`);await expandEventForm();const lunch=await roleGroup('昼食担当');await lunch.getByRole('checkbox',{name:'UI検証の架空サポートを担当者に選択',exact:true}).uncheck();await page.getByRole('button',{name:'変更を保存',exact:true}).click();await expect(page.getByRole('heading',{name:'UI検証・準備と当日の役割',exact:true})).toBeVisible();
+    const saved=JSON.parse(db.prepare('SELECT assignments_json FROM event_role_assignments WHERE seminar_id=?').get(sid).assignments_json);assert.equal(saved.LUNCH.length,1);assert.equal(saved.CHAIR.length,1);assert.equal(saved.MC.length,2);
+    await page.getByRole('button',{name:'削除',exact:true}).click({trial:true});page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'削除',exact:true}).click();await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();assert.equal(db.prepare('SELECT count(*) n FROM event_role_assignments WHERE seminar_id=?').get(sid).n,0);assert.equal(db.prepare('SELECT count(*) n FROM event_role_history WHERE seminar_id=?').get(sid).n,0);
   });
   async function onlyLunchTarget(editor,target) {
     for(const label of ['講師','外来講師','サポートメンバー','参加者','その他'])await editor.getByRole('checkbox',{name:label,exact:true}).setChecked(label===target);
