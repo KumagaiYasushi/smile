@@ -136,6 +136,9 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByRole('button',{name:'すべて閉じる',exact:true}).click();
     await page.getByRole('button',{name:'登録する',exact:true}).click();
     const external=page.locator('[data-form-section="演者・テーマ"]').getByLabel('氏名',{exact:true});await expect(external).toBeVisible();await expect(external).toHaveAttribute('aria-invalid','true');
+    const actions=page.locator('[aria-label="イベントの保存操作"]');assert.equal(await actions.evaluate(el=>getComputedStyle(el).position),'static');
+    page.once('dialog',dialog=>dialog.dismiss());await actions.getByRole('button',{name:'キャンセル',exact:true}).click();
+    assert.ok(page.url().endsWith('/seminars/new'));await expect(page.getByLabel('セミナー名',{exact:false})).toHaveValue('折りたたみの入力確認');
     await page.goto(base);
   });
   await step('会場台帳の登録・検索・保存失敗時の入力保持', async () => {
@@ -333,6 +336,8 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await selectExternalSpeaker();
     await page.getByLabel('懇親会の開催',{exact:true}).selectOption('HELD');
     const first=page.getByRole('group',{name:'開催日の懇親会 1',exact:true});
+    assert.ok(await first.evaluate(el=>{const attendance=el.querySelector('[aria-label="懇親会の出欠登録"]'),venue=el.querySelector('[aria-label="懇親会の場所・住所"]');return !!(attendance.compareDocumentPosition(venue)&Node.DOCUMENT_POSITION_FOLLOWING);}), '出欠登録の後にお店情報を表示');
+
     await first.getByLabel('懇親会の開催日',{exact:true}).fill('2027-11-03');await first.getByLabel('懇親会の開始時刻',{exact:true}).fill('18:00');
     const teacher=first.getByRole('group',{name:'UI検証の架空講師の懇親会出欠',exact:true});
     const support=first.getByRole('group',{name:'UI検証の架空サポートの懇親会出欠',exact:true});
@@ -782,7 +787,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await page.getByRole('button', { name: '＋ 昼食の手配を追加', exact: true }).click();
     const editor = page.getByRole('form', { name: '昼食の手配編集', exact: true });
     await onlyLunchTarget(editor,'講師');
-    await editor.getByLabel('メモ', { exact: true }).fill('UI検証の架空講師3名');
+    await editor.getByLabel('その他の内訳', { exact: true }).fill('UI検証の架空講師3名');
     await editor.getByLabel('講師のオーダー個数', { exact: true }).fill('3');
     await editor.getByLabel('1食あたりの費用（円）', { exact: true }).fill('1200');
     await editor.getByLabel('送料などの追加費用（円）', { exact: true }).fill('500');

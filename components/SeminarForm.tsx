@@ -356,10 +356,11 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
       {error&&<p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <p className="text-xs text-slate-500">保存すると、外部講師ありは登壇依頼・資料一括依頼・参加者確認メールの3件、なしは確認メール1件の基本タスクを設定します。期限・担当者は登録後に編集できます。</p>
-      <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white/95 p-3 shadow-sm">
+      <div aria-label="イベントの保存操作" className="mt-8 flex flex-wrap items-center justify-between gap-6 border-t border-slate-200 bg-white p-4">
         <button
           type="button"
-          onClick={() => router.back()}
+          disabled={saving}
+          onClick={() => {if(confirm('入力中の変更を保存せずに戻りますか？'))router.back();}}
           className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
         >
           キャンセル

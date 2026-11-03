@@ -29,7 +29,7 @@ export default function LunchOrderFields({data,dates,isNew,onChange,getCounts}:{
     <p className="text-sm font-medium">オーダー合計：{data.quantity===null?'未定':`${data.quantity.toLocaleString()}個`}</p>
     <button type="button" onClick={reflect} className="text-sm text-sky-800 underline">出席登録・参加者数を個数に反映</button>
     <p className="text-xs text-slate-500">午前のみ・午後のみを含む出席人数を、追加時の初期値にします。参加者は名簿の登録人数（新規イベントは0名）、外部講師は「あり」の選択を使います。個数は自由に編集でき、出欠を変更しても手入力を上書きしません。</p>
-    <label className="block text-sm">メモ<textarea aria-label="メモ" maxLength={1000} rows={2} value={data.target_details} onChange={e=>change({target_details:e.target.value})} className={input}/></label>
+    <label className="block text-sm">その他の内訳<textarea aria-label="その他の内訳" maxLength={1000} rows={2} value={data.target_details} onChange={e=>change({target_details:e.target.value})} className={input}/></label>
     <div className="grid gap-3 sm:grid-cols-2">{([['unit_price','1食あたりの費用（円）'],['additional_cost','送料などの追加費用（円）']] as const).map(([key,label])=><label key={key} className="block min-w-0 text-sm">{label}<input aria-label={label} type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={data[key]??''} onChange={e=>change({[key]:e.target.value===''?null:Number(e.target.value)})} className={input}/></label>)}</div>
     <p className="text-sm">合計費用：{cost===null?'未定':`¥${cost.toLocaleString()}`}</p>
     <label className="block text-sm">お店・注文先<input aria-label="お店・注文先" maxLength={200} value={data.shop_name} onChange={e=>change({shop_name:e.target.value})} className={input}/></label>

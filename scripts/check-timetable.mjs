@@ -105,9 +105,11 @@ for(const [name,viewport] of [['timetable-desktop',{width:1280,height:900}],['ti
     await page.goto(`${base}/seminars/${event.id}`);await page.getByRole('link',{name:'タイムスケジュール',exact:true}).click();
     await expect(page.getByRole('heading',{name:'タイムスケジュール',exact:true})).toBeVisible();
     const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});
-    await chooser.getByRole('checkbox',{name:'開会の挨拶',exact:true}).check();await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).fill('');await expect(chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true})).toHaveValue('');await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).pressSequentially('5');
-    await chooser.getByRole('checkbox',{name:'休憩',exact:true}).check();await chooser.getByLabel('休憩の所要時間（分）',{exact:true}).fill('10');
-    await chooser.getByRole('checkbox',{name:'進行確認用の演者の講演：歯周基本治療',exact:true}).check();await chooser.getByLabel('進行確認用の演者の講演：歯周基本治療の所要時間（分）',{exact:true}).fill('40');
+    assert.ok((await chooser.boundingBox()).height<330,'追加項目は初期表示でコンパクト');
+    await chooser.getByLabel('項目を選択',{exact:true}).selectOption({label:'挨拶'});await chooser.getByRole('button',{name:'挨拶を追加候補から外す',exact:true}).click();await expect(chooser.getByRole('region',{name:'挨拶の追加設定',exact:true})).toHaveCount(0);
+    await chooser.getByLabel('項目を選択',{exact:true}).selectOption({label:'開会の挨拶'});await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).fill('');await expect(chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true})).toHaveValue('');await chooser.getByLabel('開会の挨拶の所要時間（分）',{exact:true}).pressSequentially('5');
+    await chooser.getByLabel('項目を選択',{exact:true}).selectOption({label:'休憩'});await chooser.getByLabel('休憩の所要時間（分）',{exact:true}).fill('10');
+    await chooser.getByLabel('項目を選択',{exact:true}).selectOption({label:'進行確認用の演者の講演：歯周基本治療'});await chooser.getByLabel('進行確認用の演者の講演：歯周基本治療の所要時間（分）',{exact:true}).fill('40');
     await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();
     await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toContainText('09:00〜09:05');
     await expect(page.getByRole('listitem',{name:'予定 3',exact:true})).toContainText('09:15〜09:55');
@@ -131,7 +133,7 @@ for(const [name,viewport] of [['timetable-desktop',{width:1280,height:900}],['ti
     const editedTitle=page.getByRole('listitem',{name:'予定 2',exact:true}).getByLabel('項目名',{exact:true});await editedTitle.fill('変更後の講演タイトル');
     await expect(page.getByText('基本情報の終了時刻を5分超過',{exact:true})).toBeVisible();
     await expect(page.getByRole('listitem',{name:'予定 3',exact:true})).toContainText('09:55〜10:05');
-    const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});await chooser.getByRole('checkbox',{name:'休憩',exact:true}).check();await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();
+    const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});await chooser.getByLabel('項目を選択',{exact:true}).selectOption({label:'休憩'});await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();
     await expect(page.getByRole('listitem',{name:'予定 4',exact:true})).toContainText('10:05〜10:15');
     await page.getByRole('listitem',{name:'予定 4',exact:true}).getByRole('button',{name:'削除',exact:true}).click();
     await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('タイムスケジュールを保存しました');
@@ -153,8 +155,8 @@ for(const [name,viewport] of [['timetable-desktop',{width:1280,height:900}],['ti
     await page.getByLabel('対象の日程',{exact:true}).selectOption('1');
     const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});
     const entries=[['昼休憩',2,60],['ディスカッション',1,30],['グループディスカッション',3,30],['進行確認用の演者の講演：歯周基本治療',2,30]];
-    for(const [label,,minutes] of entries){await chooser.getByRole('checkbox',{name:label,exact:true}).check();await chooser.getByLabel(`${label}の所要時間（分）`,{exact:true}).fill(String(minutes));}
-    const colors=await Promise.all(entries.map(([label])=>chooser.getByRole('checkbox',{name:label,exact:true}).locator('..').locator('..').evaluate(el=>getComputedStyle(el).backgroundColor)));assert.equal(new Set(colors).size,4);
+    for(const [label,,minutes] of entries){await chooser.getByLabel('項目を選択',{exact:true}).selectOption({label:label});await chooser.getByLabel(`${label}の所要時間（分）`,{exact:true}).fill(String(minutes));}
+    const colors=await Promise.all(entries.map(([label])=>chooser.getByRole('region',{name:`${label}の追加設定`,exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor)));assert.equal(new Set(colors).size,4);
     const quantity=chooser.getByLabel('昼休憩の追加する数',{exact:true});await quantity.fill('');await expect(quantity).toHaveValue('');await quantity.pressSequentially('0');
     await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'追加する数は'})).toBeVisible();await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toHaveCount(0);
     await quantity.fill('200');await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'200件以内'})).toBeVisible();
