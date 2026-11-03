@@ -149,4 +149,25 @@ for(const [name,viewport] of [['timetable-desktop',{width:1280,height:900}],['ti
     assert.equal((await page.request.put(endpoint,{data:{version:1,days:[]}})).status(),403);
     await layout('編集後のスケジュール');
   });
+  await step('新しい3項目と演者講演を個数指定で追加・個別編集・保存',async()=>{
+    await page.getByLabel('対象の日程',{exact:true}).selectOption('1');
+    const chooser=page.getByRole('group',{name:'追加する項目（複数選択可）',exact:true});
+    const entries=[['昼休憩',2,60],['ディスカッション',1,30],['グループディスカッション',3,30],['進行確認用の演者の講演：歯周基本治療',2,30]];
+    for(const [label,,minutes] of entries){await chooser.getByRole('checkbox',{name:label,exact:true}).check();await chooser.getByLabel(`${label}の所要時間（分）`,{exact:true}).fill(String(minutes));}
+    const colors=await Promise.all(entries.map(([label])=>chooser.getByRole('checkbox',{name:label,exact:true}).locator('..').locator('..').evaluate(el=>getComputedStyle(el).backgroundColor)));assert.equal(new Set(colors).size,4);
+    const quantity=chooser.getByLabel('昼休憩の追加する数',{exact:true});await quantity.fill('');await expect(quantity).toHaveValue('');await quantity.pressSequentially('0');
+    await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'追加する数は'})).toBeVisible();await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toHaveCount(0);
+    await quantity.fill('200');await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'200件以内'})).toBeVisible();
+    for(const [label,count] of entries)await chooser.getByLabel(`${label}の追加する数`,{exact:true}).fill(String(count));
+    await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();
+    await expect(page.getByRole('listitem',{name:'予定 8',exact:true})).toContainText('13:30〜14:00');
+    const first=page.getByRole('listitem',{name:'予定 1',exact:true});assert.equal(await first.evaluate(el=>getComputedStyle(el).backgroundColor),colors[0]);assert.equal(await page.getByRole('listitem',{name:'予定 2',exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor),colors[0]);assert.equal(await page.getByRole('listitem',{name:'予定 4',exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor),colors[2]);await first.getByLabel('項目名',{exact:true}).fill('昼休憩・前半');
+    await expect(page.getByRole('listitem',{name:'予定 2',exact:true}).getByLabel('項目名',{exact:true})).toHaveValue('昼休憩');
+    await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
+    const saved=await (await page.request.get(endpoint)).json(),items=saved.days.find(p=>p.date==='2027-06-08').items;
+    assert.equal(items.length,8);assert.equal(new Set(items.map(p=>p.id)).size,8);assert.deepEqual(['LUNCH_BREAK','DISCUSSION','GROUP_DISCUSSION','LECTURE'].map(type=>items.filter(p=>p.type===type).length),[2,1,3,2]);
+    await page.reload();await page.getByLabel('対象の日程',{exact:true}).selectOption('1');await expect(page.getByRole('listitem',{name:'予定 1',exact:true}).getByLabel('項目名',{exact:true})).toHaveValue('昼休憩・前半');
+    await layout('個数指定');await screenshot('quantities');
+  });
+
 });

@@ -1,7 +1,7 @@
 import type {EventTimes} from './event-schedule.ts';
 import {TaskError,parseVersion} from './task.ts';
 import {requireDate} from './task-template.ts';
-export const TIMETABLE_TYPES={OPENING:'開会の挨拶',GREETING:'挨拶',BREAK:'休憩',LECTURE:'講演',CLOSING:'閉会の挨拶',SPONSOR_CM:'協賛CM'} as const;
+export const TIMETABLE_TYPES={OPENING:'開会の挨拶',GREETING:'挨拶',BREAK:'休憩',LUNCH_BREAK:'昼休憩',LECTURE:'講演',DISCUSSION:'ディスカッション',GROUP_DISCUSSION:'グループディスカッション',CLOSING:'閉会の挨拶',SPONSOR_CM:'協賛CM'} as const;
 export type TimetableType=keyof typeof TIMETABLE_TYPES;
 export type TimetableItem={id:string;type:TimetableType;title:string;minutes:number;speaker_key:string|null;speaker_name:string;theme:string};
 export type TimetableDay={date:string|null;start:string;items:TimetableItem[]};
