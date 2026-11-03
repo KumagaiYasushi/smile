@@ -1,5 +1,6 @@
 'use client';
 
+import {useStableEditorScroll} from '@/components/useStableEditorScroll';
 import SpeakerFields from '@/components/SpeakerFields';
 import {eventSpeakers} from '@/types/speaker';
 import { useState, useId, useRef, isValidElement, cloneElement } from 'react';
@@ -35,6 +36,7 @@ type Props = {
 
 export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [speakers,setSpeakers]=useState(()=>eventSpeakers(initial??{}));
+  const stableScroll=useStableEditorScroll();
   const router = useRouter();
   const formRef=useRef<HTMLFormElement>(null);
   const registration=useEventRegistration(initial?.id);
@@ -151,9 +153,9 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   return (
-    <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} data-stable-editor {...stableScroll} noValidate onSubmit={handleSubmit} className="space-y-4">
       <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-sky-100 bg-white/95 p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'smooth',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','演者・テーマ','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title} value={title}>{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</option>)}</select></label>
+        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'instant',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','演者・テーマ','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title} value={title}>{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</option>)}</select></label>
         <button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=true;})} className="rounded-lg border px-3 py-2 text-sm">すべて開く</button><button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=false;})} className="rounded-lg border px-3 py-2 text-sm">すべて閉じる</button></div>
       </div>
       {error && (

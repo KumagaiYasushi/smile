@@ -32,3 +32,22 @@ fieldset[aria-invalid="true"] {
   color: #b91c1c;
   font-size: .875rem;
 }
+
+/* Editing and disclosure changes must not cause the browser to choose a new
+   scroll anchor. Keep explicit scrolling and validation navigation available. */
+html {
+  scrollbar-gutter: stable;
+}
+html:has(form[data-stable-editor]),
+form[data-stable-editor] {
+  overflow-anchor: none;
+}
+
+/* iPhone Safari zooms focused controls smaller than 16px, moving the viewport. */
+@media (max-width: 639px) {
+  form[data-stable-editor] input:not([type="checkbox"]):not([type="radio"]),
+  form[data-stable-editor] select,
+  form[data-stable-editor] textarea {
+    font-size: 16px;
+  }
+}
