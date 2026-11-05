@@ -7,12 +7,12 @@ import type {LunchInput} from './lunch.ts';
 export type FinanceSettings={sponsorship:number|null;participation_adjustment:number;other_expenses:number|null;notes:string};
 export const emptyFinance=():FinanceSettings=>({sponsorship:null,participation_adjustment:0,other_expenses:null,notes:''});
 export function parseFinance(value:unknown):FinanceSettings {
-  if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('見積もりの入力形式が不正です');
+  if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('概算の入力形式が不正です');
   const p=value as Record<string,unknown>;
-  if(Object.keys(p).some(k=>!Object.hasOwn(emptyFinance(),k)))throw new TaskError('見積もりに変更できない項目が含まれています');
+  if(Object.keys(p).some(k=>!Object.hasOwn(emptyFinance(),k)))throw new TaskError('概算に変更できない項目が含まれています');
   const result={...emptyFinance(),...p};
   for(const key of ['sponsorship','participation_adjustment','other_expenses'] as const){const n=result[key];if(n===null&&key!=='participation_adjustment')continue;if(typeof n!=='number'||!Number.isSafeInteger(n)||(key!=='participation_adjustment'&&n<0))throw new TaskError('協賛費・その他支出は0以上、参加費調整は増減額を円単位の整数で入力してください');}
-  if(typeof result.notes!=='string'||result.notes.length>2000)throw new TaskError('見積もりメモは2000文字以内で入力してください');
+  if(typeof result.notes!=='string'||result.notes.length>2000)throw new TaskError('概算メモは2000文字以内で入力してください');
   return {...result,notes:result.notes.trim()};
 }
 export function buildEventEstimate(event:Pick<Seminar,'fee_dental_hygienist'|'fee_dentist'|'fee_other'|'external_lecturer'|'external_payment'|'venue_fee'> & Partial<Pick<Seminar,'lecturer_role'|'lecturer_name'|'speakers'>>,participants:Pick<Participant,'role'|'payment_status'|'paid_amount'>[],lunch:LunchInput[],settings:FinanceSettings){

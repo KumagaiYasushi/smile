@@ -10,9 +10,9 @@ export function createFinanceStore(db:Database.Database){
   function read(event:Seminar){const data=settings(event.id);const people=db.prepare('SELECT role,payment_status,paid_amount FROM participants WHERE seminar_id=?').all(event.id) as Participant[];const lunch=createLunchStore(db).list(event.id).plans;return {...data,estimate:buildEventEstimate(event,people,lunch,data.settings)};}
   return {read,save(event:Seminar,value:unknown,actorId:number){return db.transaction(()=>{
     if(!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId))throw new TaskError('ログインが必要です',403);
-    if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('見積もりの入力形式が不正です');
+    if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('概算の入力形式が不正です');
     const {version,...fields}=value as Record<string,unknown>;const current=settings(event.id);
-    if((version===0?0:parseVersion(version))!==current.version)throw new TaskError('別の操作で更新されています。最新の見積もりを取得してください',409);
+    if((version===0?0:parseVersion(version))!==current.version)throw new TaskError('別の操作で更新されています。最新の概算を取得してください',409);
     const input=parseFinance({...current.settings,...fields});
     db.prepare(`INSERT INTO event_finance(seminar_id,input_json,actor_id) VALUES(?,?,?) ON CONFLICT(seminar_id) DO UPDATE SET input_json=excluded.input_json,actor_id=excluded.actor_id,version=event_finance.version+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')`).run(event.id,JSON.stringify(input),actorId);
     return read(event);

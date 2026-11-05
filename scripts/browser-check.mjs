@@ -622,14 +622,14 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   await step('申込からの自動収入と協賛費・調整・支出見積もり',async()=>{
     const participantIds=[];
     for(const name of ['見積もり用の申込1','見積もり用の申込2']){const response=await page.request.post(`${base}/api/seminars/${eventId}/participants`,{headers:{Origin:base},data:{name,role:'dentist'}});assert.equal(response.status(),201);participantIds.push((await response.json()).id);}
-    await page.getByRole('link',{name:'収支見積もり',exact:true}).click();
+    await page.getByRole('link',{name:'収支概算',exact:true}).click();
     await expect(page.getByText('参加費収入：¥20,000（申込 2名）',{exact:true})).toBeVisible();
     await page.getByLabel('協賛費（円）',{exact:true}).fill('10000');await page.getByLabel('参加費収入の調整（円）',{exact:true}).fill('-1000');await page.getByLabel('その他支出（円）',{exact:true}).fill('500');
-    await page.getByRole('button',{name:'見積もり設定を保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
+    await page.getByRole('button',{name:'概算設定を保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
     await expect(page.getByRole('heading',{name:'収入小計',exact:true}).locator('..')).toContainText('¥29,000');await expect(page.getByRole('heading',{name:'支出小計',exact:true}).locator('..')).toContainText('¥15,501');
-    await layout('イベントの収支見積もり');await screenshot('event-finance');
+    await layout('イベントの収支概算');await screenshot('event-finance');
     for(const pid of participantIds)assert.equal((await page.request.delete(`${base}/api/seminars/${eventId}/participants/${pid}`,{headers:{Origin:base}})).status(),200);
-    await page.getByRole('button',{name:'最新の見積もりを取得',exact:true}).click();await expect(page.getByText('参加費収入：¥0（申込 0名）',{exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'最新の概算を取得',exact:true}).click();await expect(page.getByText('参加費収入：¥0（申込 0名）',{exact:true})).toBeVisible();
     await page.getByRole('link',{name:'← イベント詳細へ',exact:true}).click();
   });
   await step('会場台帳の編集競合・利用停止・イベント記録保持', async () => {
