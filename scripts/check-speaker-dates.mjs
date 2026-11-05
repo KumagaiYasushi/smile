@@ -106,13 +106,17 @@ for(const [name,viewport] of [['speaker-dates-desktop',{width:1280,height:900}],
     for(const date of dates)await page.getByLabel(`${date}の開催方法`,{exact:true}).selectOption('ONSITE');
     await page.locator('[data-form-section="演者・テーマ"] > summary').click();
     for(let i=0;i<4;i++){
-      await page.getByRole('button',{name:'演者を追加',exact:true}).click();const card=page.getByRole('group',{name:`演者 ${i+1}`,exact:true});
-      await card.getByLabel('登壇日',{exact:true}).selectOption(dates[i%2]);
+      const dateGroup=page.getByRole('region',{name:`${dates[i%2]}の演者登録`,exact:true});
+      await dateGroup.getByRole('button',{name:`${dates[i%2]}に演者を追加`,exact:true}).click();const card=page.getByRole('group',{name:`演者 ${i+1}`,exact:true});
+      await expect(card.getByLabel('登壇日',{exact:true})).toHaveValue(dates[i%2]);
+      await expect(dateGroup.getByRole('group',{name:`演者 ${i+1}`,exact:true})).toBeVisible();
       await card.getByLabel('演者区分',{exact:true}).selectOption(i<2?'EXTERNAL_LECTURER':'SOCIETY_SUPPORT');
       if(i<2){await card.getByLabel('氏名',{exact:true}).fill('日別で再登壇する外部講師');await card.getByLabel('勤務施設名',{exact:true}).fill('日別検証施設');await card.getByLabel('お車代（円）',{exact:true}).fill(String((i+1)*1000));await card.getByLabel('謝礼（円）',{exact:true}).fill(String((i+1)*10000));}
       else{await expect(card.getByLabel('名簿から選択').locator('option')).not.toHaveCount(1);await card.getByLabel('名簿から選択').selectOption({index:1});}
       await card.getByLabel('テーマ',{exact:true}).fill(`第${i%2+1}回の${i<2?'外部講師':'サポート'}テーマ`);
     }
+    for(const date of dates)await expect(page.getByRole('region',{name:`${date}の演者登録`,exact:true}).getByText('登録済み：2名',{exact:true})).toBeVisible();
+    await expect(page.getByRole('region',{name:'全開催日共通の演者登録',exact:true}).getByRole('group',{name:/^演者 \d+$/})).toHaveCount(0);
     await layout('日別の演者登録');await screenshot('registration');
     await page.route(`${base}/api/seminars`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'日別演者の保存失敗テスト'})}),{times:1});
     await page.getByRole('button',{name:'登録する',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'日別演者の保存失敗テスト'})).toBeVisible();
@@ -124,6 +128,8 @@ for(const [name,viewport] of [['speaker-dates-desktop',{width:1280,height:900}],
   await step('再編集で登壇日とテーマを保持し片方の日だけ変更',async()=>{
     await page.goto(`${base}/seminars/${eventId}/edit`);await page.locator('[data-form-section="演者・テーマ"] > summary').click();
     for(let i=0;i<4;i++){const card=page.getByRole('group',{name:`演者 ${i+1}`,exact:true});await expect(card.getByLabel('登壇日')).toHaveValue(dates[i%2]);await expect(card.getByLabel('テーマ')).toHaveValue(saved.speakers[i].theme);}
+    await expect(page.getByRole('region',{name:`${dates[0]}の演者登録`,exact:true}).getByRole('group',{name:'演者 1',exact:true})).toBeVisible();
+    await expect(page.getByRole('region',{name:`${dates[1]}の演者登録`,exact:true}).getByRole('group',{name:'演者 2',exact:true})).toBeVisible();
     await page.getByRole('group',{name:'演者 2',exact:true}).getByLabel('テーマ').fill('第2回だけ変更したテーマ');await page.getByRole('button',{name:'変更を保存',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
     const updated=await (await page.request.get(`${base}/api/seminars/${eventId}`)).json();assert.equal(updated.speakers[0].theme,saved.speakers[0].theme);assert.equal(updated.speakers[1].theme,'第2回だけ変更したテーマ');
   });

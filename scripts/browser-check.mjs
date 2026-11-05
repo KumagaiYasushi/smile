@@ -101,7 +101,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   async function openSystemMenu(){const button=page.getByRole('button',{name:'システムメニューを開く',exact:true});if(await button.isVisible())await button.click();}
   async function selectExternalSpeaker(){
     const section=page.locator('[data-form-section="演者・テーマ"]');await section.evaluate(node=>{node.open=true;});
-    await section.getByRole('button',{name:'演者を追加',exact:true}).click();
+    await section.getByRole('button',{name:/^(演者を追加|全開催日共通の演者を追加)$/}).click();
     const speaker=section.getByRole('group',{name:'演者 1',exact:true});
     await speaker.getByLabel('演者区分').selectOption('EXTERNAL_LECTURER');
     await speaker.getByLabel('名簿から選択').selectOption({label:'UI検証の外部講師 / UI検証の編集済み施設'});
