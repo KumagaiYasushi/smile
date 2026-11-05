@@ -41,7 +41,7 @@ export default function EditSeminarPage({ params }: Props) {
         <h1 className="text-2xl font-bold text-slate-800">セミナー編集</h1>
         <p className="text-slate-500 text-sm mt-1">{seminar.name}</p>
       </div>
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8">
+      <div className="min-w-0">
         <SeminarForm key={seminar.id} initial={seminar} onSubmit={handleSubmit} submitLabel="変更を保存" />
       </div>
     </div>

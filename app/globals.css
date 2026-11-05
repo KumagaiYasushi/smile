@@ -51,3 +51,26 @@ form[data-stable-editor] {
     font-size: 16px;
   }
 }
+
+/* Shrink grid/flex children to the device width; wrap long names and addresses
+   rather than masking overflow with a clipped page. Tables keep local scrolling. */
+[data-app-main], .app-shell, .app-workspace, .app-workspace-content {
+  min-width: 0;
+}
+.app-workspace-content {
+  overflow-wrap: anywhere;
+}
+.app-workspace-content :where(fieldset, form, details) {
+  min-width: 0;
+}
+@media (max-width: 639px) {
+  .app-workspace-content :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) {
+    font-size: 16px;
+    max-width: 100%;
+  }
+}
+@media print {
+  .app-shell { display: block !important; }
+  .app-workspace { border: 0 !important; box-shadow: none !important; }
+  .app-workspace-content { padding: 0 !important; }
+}

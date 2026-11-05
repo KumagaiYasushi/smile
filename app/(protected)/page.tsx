@@ -88,17 +88,17 @@ export default function HomePage() {
       ) : filteredSeminars.length === 0 ? (
         <p className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">この種別のイベントはまだ登録されていません</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {cards.map(({seminar,date}) => (
             <Link
               key={`${seminar.id}-${date??'event'}`}
               href={`/seminars/${seminar.id}`}
-              className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-sky-300 transition-all block"
+              className="min-w-0 max-w-full bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 [overflow-wrap:anywhere] hover:shadow-md hover:border-sky-300 transition-all block"
             >
               <span className="inline-block mb-3 text-xs bg-sky-50 text-sky-700 px-2 py-1 rounded-full">{EVENT_TYPE_LABELS[seminar.event_type]}</span>
               <span className="inline-block mb-3 ml-2 text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
               <div className="flex items-start justify-between mb-3">
-                <h2 className="font-bold text-slate-800 text-base leading-tight flex-1 mr-2">
+                <h2 className="font-bold text-slate-800 text-base leading-tight min-w-0 flex-1 mr-2">
                   {date?eventSessionName(seminar,date):seminar.name}
                 </h2>
                 {seminar.dates.length > 0 && (
@@ -111,7 +111,7 @@ export default function HomePage() {
               {seminar.dates.length > 0 && (
                 <div className="text-sm text-slate-600 mb-3 space-y-0.5">
                   {(date?[date]:seminar.dates.slice(0, 2)).map((d, i) => (
-                    <div key={i} className="flex items-center gap-1">
+                    <div key={i} className="flex min-w-0 items-start gap-1">
                       <span className="text-slate-400">📅</span>
                       <span>{formatEventDate(d, seminar.event_times)}</span>
                     </div>
@@ -123,16 +123,16 @@ export default function HomePage() {
               )}
 
               {seminar.lecturer_name && (
-                <div className="text-sm text-slate-600 mb-3 flex items-center gap-1">
+                <div className="min-w-0 text-sm text-slate-600 mb-3 flex items-start gap-1">
                   <span className="text-slate-400">👨‍⚕️</span>
-                  <span>{seminar.lecturer_name}</span>
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{seminar.lecturer_name}</span>
                 </div>
               )}
 
               {(seminar.dates.length?seminar.dates.some(date=>eventMethodForDate(seminar,date)!=='ONLINE'):seminar.delivery_method!=='ONLINE') && seminar.venue && (
-                <div className="text-sm text-slate-600 mb-3 flex items-center gap-1">
+                <div className="min-w-0 text-sm text-slate-600 mb-3 flex items-start gap-1">
                   <span className="text-slate-400">📍</span>
-                  <span className="truncate">{seminar.venue}</span>
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{seminar.venue}</span>
                 </div>
               )}
 

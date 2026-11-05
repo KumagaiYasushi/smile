@@ -98,7 +98,7 @@ async function login(page, password, email = 'member@example.invalid') {
 }
 
 async function memberFlow({ page, context, db, password, step, screenshot, layout }) {
-  async function openSystemMenu(){await page.locator('details').filter({has:page.getByRole('navigation',{name:'システムメニュー',includeHidden:true})}).evaluate(node=>{node.open=true;});}
+  async function openSystemMenu(){const button=page.getByRole('button',{name:'システムメニューを開く',exact:true});if(await button.isVisible())await button.click();}
   async function selectExternalSpeaker(){
     const section=page.locator('[data-form-section="演者・テーマ"]');await section.evaluate(node=>{node.open=true;});
     await section.getByRole('button',{name:'演者を追加',exact:true}).click();
@@ -291,7 +291,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     for(const title of ['外部講師への依頼状','外部講師への資料一括依頼（略歴・写真・抄録300字・800字）','参加者への確認メール'])await expect(page.getByRole('heading',{name:title,exact:true})).toBeVisible();
     assert.equal(db.prepare('SELECT count(*) n FROM event_tasks WHERE seminar_id=?').get(sid).n,3);
     await expect(page.getByRole('navigation',{name:'イベントメニュー',exact:true})).toBeVisible();
-    await expect(page.getByRole('navigation',{name:'システムメニュー',exact:true})).toBeHidden();
+    if(page.viewportSize().width>=1024)await expect(page.getByRole('navigation',{name:'システムメニュー',exact:true})).toBeVisible();else await expect(page.getByRole('navigation',{name:'システムメニュー',exact:true})).toBeHidden();
     await expect(page.getByRole('region',{name:'準備の進捗コメント',exact:true})).toContainText('全3件');
     const bundle=page.getByRole('article').filter({has:page.getByRole('heading',{name:'外部講師への資料一括依頼（略歴・写真・抄録300字・800字）',exact:true})});
     await bundle.getByRole('button',{name:'文面を確認',exact:true}).click();
@@ -1183,7 +1183,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     assert.equal(db.prepare('SELECT count(*) n FROM event_lunch_plans').get().n, 0);
   });
   await step('ログアウト後の再アクセス拒否', async () => {
-    await page.getByRole('button', { name: 'ログアウト', exact: true }).click();
+    await openSystemMenu();await page.getByRole('button', { name: 'ログアウト', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'ログイン', exact: true })).toBeVisible();
     await page.goto(`${base}/dashboard`);
     await expect(page.getByRole('heading', { name: 'ログイン', exact: true })).toBeVisible();

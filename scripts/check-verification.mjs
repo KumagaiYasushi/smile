@@ -37,6 +37,7 @@ try {
   await page.getByLabel('メールアドレス', { exact: true }).fill('verifier@example.invalid');
   await page.getByLabel('パスワード', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'ログイン', exact: true }).click();
+  if(await page.getByRole('button',{name:'システムメニューを開く',exact:true}).isVisible())await page.getByRole('button',{name:'システムメニューを開く',exact:true}).click();
   await page.getByRole('link', { name: '検証ページ', exact: true }).click();
   await expect(page.getByRole('heading', { name: '操作検証ページ', exact: true })).toBeVisible();
   const samples = page.getByRole('region', { name: '検証用サンプル', exact: true });
@@ -56,9 +57,11 @@ try {
     await editor.getByRole('button', { name: '保存する', exact: true }).click();
     await expect(editor).toBeHidden({timeout:30000});
     await expect(external).toContainText('¥2,400');
-    await page.getByRole('link', { name: '検証ページ', exact: true }).click();
+    if(await page.getByRole('button',{name:'システムメニューを開く',exact:true}).isVisible())await page.getByRole('button',{name:'システムメニューを開く',exact:true}).click();
+  await page.getByRole('link', { name: '検証ページ', exact: true }).click();
   }
   assert.deepEqual(errors, []);
+  if(await page.getByRole('button',{name:'システムメニューを開く',exact:true}).isVisible())await page.getByRole('button',{name:'システムメニューを開く',exact:true}).click();
   await page.getByRole('button', { name: 'ログアウト', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'ログイン', exact: true })).toBeVisible();
   await page.goto(`${base}/verification`);

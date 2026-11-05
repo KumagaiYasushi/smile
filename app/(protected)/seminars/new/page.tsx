@@ -21,7 +21,7 @@ export default function NewSeminarPage() {
         <h1 className="text-2xl font-bold text-slate-800">新規セミナー登録</h1>
         <p className="text-slate-500 text-sm mt-1">セミナーの基本情報を入力してください</p>
       </div>
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8">
+      <div className="min-w-0">
         <SeminarForm onSubmit={handleSubmit} submitLabel="登録する" />
       </div>
     </div>
