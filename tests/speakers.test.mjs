@@ -4,7 +4,7 @@ import Database from 'better-sqlite3';
 import {resolveSpeakers} from '../lib/speakers.ts';
 import {createSocietyMemberStore} from '../lib/society-members.ts';
 import {createExternalLecturerStore} from '../lib/external-lecturers.ts';
-import {eventSpeakers,speakerPaymentSummary} from '../types/speaker.ts';
+import {eventSpeakers,speakerPaymentSummary,speakerKey} from '../types/speaker.ts';
 import {defaultTaskMessage} from '../types/task-message.ts';
 test('multiple speaker categories retain independent themes and new external speakers are reusable directory entries',()=>{
   const db=new Database(':memory:');db.exec('CREATE TABLE auth_users(id INTEGER PRIMARY KEY,active INTEGER);INSERT INTO auth_users VALUES(1,1)');
@@ -58,5 +58,32 @@ test('event save persists speakers and directory together; edits preserve data a
     assert.throws(()=>db.transaction(()=>createSeminar({...input,event_type:'INVALID',speakers:[{...speakers[0],name:'ロールバック講師'}]},1))());
     assert.ok(!createExternalLecturerStore(db).list().some(p=>p.name==='ロールバック講師'));
     assert.deepEqual(updateSeminar(event.id,{speakers:[]},1).speakers,[]);
+    const dates=['2027-06-01','2027-06-08'];
+    const sessions=db.transaction(()=>createSeminar({...input,occurrence_type:'MULTIPLE',dates,speakers:[{...speakers[0],date:dates[0],theme:'初回'},{...speakers[0],date:dates[1],theme:'第2回'}]},1))();
+    assert.deepEqual(getSeminarById(sessions.id).speakers.map(p=>[p.date,p.theme]),[[dates[0],'初回'],[dates[1],'第2回']]);
+    assert.deepEqual(updateSeminar(sessions.id,{notes:'日別演者を保持'},1).speakers,sessions.speakers);
+    const edited=updateSeminar(sessions.id,{speakers:sessions.speakers.map((p,i)=>i===1?{...p,theme:'第2回の変更'}:p)},1);assert.equal(edited.speakers[0].theme,'初回');assert.equal(edited.speakers[1].theme,'第2回の変更');
+    assert.throws(()=>db.transaction(()=>createSeminar({...input,dates,speakers:[{...speakers[0],date:'2027-07-01'}]},1))(),{status:400});
+
   }finally{db.close();rmSync(directory,{recursive:true,force:true});delete process.env.SMILE_DATA_DIR;}
+});
+
+
+test('speakers can repeat on different dates with independent themes and payments, but duplicates and unknown dates are refused',()=>{
+  const db=new Database(':memory:');db.exec('CREATE TABLE auth_users(id INTEGER PRIMARY KEY,active INTEGER);INSERT INTO auth_users VALUES(1,1)');
+  try{
+    const dates=['2027-06-01','2027-06-08'],person={role:'EXTERNAL_LECTURER',id:null,name:'日別の外部講師',facility:'日別施設',theme:'初日のテーマ',date:dates[0],payment:{travel:1000,honorarium:10000}};
+    const saved=resolveSpeakers(db,[person,{...person,date:dates[1],theme:'2日目のテーマ',payment:{travel:2000,honorarium:20000}}],[],1,dates);
+    assert.equal(saved[0].id,saved[1].id);assert.notEqual(speakerKey(saved[0]),speakerKey(saved[1]));assert.equal(createExternalLecturerStore(db).list().filter(p=>p.name===person.name).length,1);
+    assert.deepEqual(speakerPaymentSummary(saved),{travel:3000,honorarium:30000,travelUnknown:0,honorariumUnknown:0});
+    assert.deepEqual(resolveSpeakers(db,saved,saved,1,dates),saved);
+    const omitted=saved.map(p=>{const next={...p};delete next.payment;return next;});assert.deepEqual(resolveSpeakers(db,omitted,saved,1,dates).map(p=>p.payment),saved.map(p=>p.payment));
+    for(const list of [[saved[0],saved[0]],[{...saved[0],date:undefined},saved[1]],[saved[0],{...saved[1],date:undefined}],[{...saved[0],date:'2027-07-01'}],[{...saved[0],date:'invalid'}]])assert.throws(()=>resolveSpeakers(db,list,[],1,dates),{status:400});
+    const changedDates=['2027-07-01'];assert.deepEqual(resolveSpeakers(db,saved,saved,1,changedDates),saved);
+    db.prepare('UPDATE external_lecturers SET active=0 WHERE id=?').run(saved[0].id);
+    assert.equal(resolveSpeakers(db,saved,saved,1,dates).length,2);
+    assert.throws(()=>resolveSpeakers(db,[{...saved[0],date:'2027-07-01'}],saved,1,changedDates),{status:400});
+    const task={title:'依頼',description:'タスクの依頼文を優先',due_date:null};const message=defaultTaskMessage({name:'日別イベント',dates,speakers:saved},task);
+    assert.ok(message.body.includes('2027-06-01 ／ 日別の外部講師：初日のテーマ'));assert.ok(message.body.includes('2027-06-08 ／ 日別の外部講師：2日目のテーマ'));assert.ok(message.body.includes(task.description));
+  }finally{db.close();}
 });

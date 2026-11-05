@@ -3,7 +3,7 @@ import type {ExternalPayment} from './external-payment.ts';
 import {TaskError} from './task.ts';
 import type {Seminar} from './seminar.ts';
 export const SPEAKER_ROLES={EXTERNAL_LECTURER:'外部講師',SOCIETY_LECTURER:'研究会講師',SOCIETY_SUPPORT:'研究会サポートメンバー'} as const;
-export type Speaker={role:keyof typeof SPEAKER_ROLES;id:number|null;name:string;facility:string;theme:string;payment?:ExternalPayment};
+export type Speaker={role:keyof typeof SPEAKER_ROLES;id:number|null;name:string;facility:string;theme:string;date?:string;payment?:ExternalPayment};
 export function eventSpeakers(event:Partial<Seminar>):Speaker[]{
   if(event.speakers!=null){
     const external=event.speakers.filter(p=>p.role==='EXTERNAL_LECTURER');
@@ -30,3 +30,5 @@ export function speakerPaymentSummary(people:Speaker[]){
 export function speakerPaymentTotal(people:Speaker[]):ExternalPayment{
   const s=speakerPaymentSummary(people);return {travel:s.travelUnknown?null:s.travel,honorarium:s.honorariumUnknown?null:s.honorarium};
 }
+
+export function speakerKey(person:Speaker){return `${person.role}:${person.id??person.name}${person.date?`@${person.date}`:''}`;}

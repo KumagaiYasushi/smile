@@ -1,6 +1,6 @@
 export type EventOutline={
   event_id:number;organization:string;name:string;event_type:string;occurrence:string;content:string;
-  schedule:{date:string;when:string;method:string;session?:string}[];venue:string|null;lecturers:{name:string;facility:string;theme?:string}[];audience:string;
+  schedule:{date:string;when:string;method:string;session?:string}[];venue:string|null;lecturers:{name:string;facility:string;theme?:string;date?:string}[];audience:string;
   fees:{label:string;amount:number|null}[];repeat_fees:{label:string;amount:number|null}[]|null;
   gatherings:{timing:string;start:string;end:string;venue:string;fee:number|null}[];
 };
@@ -14,7 +14,7 @@ export function outlineSections(data:EventOutline):{title:string;text:string}[]{
     {title:'イベント種別・開催回数',text:`${data.event_type} ／ ${data.occurrence}`},
     {title:'開催日時・開催方法',text:data.schedule.length?data.schedule.map(row=>`${row.session?row.session+'\n':''}${row.when}\n${row.method}`).join('\n\n'):'日程未定'},
     ...(data.venue===null?[]:[{title:'会場',text:data.venue||'未設定'}]),
-    {title:'講師',text:data.lecturers.length?data.lecturers.map(p=>`${p.name}${p.facility?`（${p.facility}）`:''}${p.theme?`\nテーマ：${p.theme}`:''}`).join('\n'):'未設定'},
+    {title:'講師',text:data.lecturers.length?data.lecturers.map(p=>`${p.date?p.date+' ／ ':''}${p.name}${p.facility?`（${p.facility}）`:''}${p.theme?`\nテーマ：${p.theme}`:''}`).join('\n'):'未設定'},
     {title:'主な参加対象',text:data.audience||'未設定'},
     {title:'開催内容',text:data.content||'未設定'},
     {title:data.repeat_fees?'参加費（複数回合計）':'参加費',text:data.fees.map(row=>`${row.label}：${outlineAmount(row.amount)}`).join('\n')},

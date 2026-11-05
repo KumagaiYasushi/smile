@@ -240,7 +240,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         </Field>
       </Section>
 
-      <Section title="演者・テーマ"><SpeakerFields value={speakers} onChange={setSpeakers}/></Section>
+      <Section title="演者・テーマ"><SpeakerFields value={speakers} onChange={setSpeakers} dates={validDates} multiple={occurrence==='MULTIPLE'}/></Section>
 
       <Section title="イベント当日の出欠">
         {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}

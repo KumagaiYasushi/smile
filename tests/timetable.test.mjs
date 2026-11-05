@@ -83,3 +83,17 @@ test('legacy timetable items default to no chairs and unknown-date chairs use un
     assert.equal(store.read(undecided).chair_choices[''][0].member_id,member.id);
   }finally{db.close();}
 });
+
+
+test('lecture choices and saved themes belong to the speaker appearance date',()=>{
+  const {db,store}=fixture();try{
+    const dated={...event,speakers:[{...event.speakers[0],date:'2027-06-01',theme:'初日'},{...event.speakers[0],date:'2027-06-08',theme:'2日目'},{role:'SOCIETY_SUPPORT',id:3,name:'共通の演者',facility:'',theme:'共通'}]};
+    const choices=store.read(dated).lectures;assert.equal(new Set(choices.map(p=>p.key)).size,3);assert.equal(choices[0].date,'2027-06-01');
+    const lecture={...item('dated-lecture','LECTURE'),speaker_key:choices[0].key};
+    assert.throws(()=>store.save(dated,{version:0,days:[{...day,date:'2027-06-08',items:[lecture]}]},1),{status:400});
+    const saved=store.save(dated,{version:0,days:[{...day,items:[lecture]},{...day,date:'2027-06-08',items:[{...lecture,id:'second',speaker_key:choices[1].key},{...lecture,id:'common',speaker_key:choices[2].key}]}]},1);
+    assert.equal(saved.days[0].items[0].theme,'初日');assert.equal(saved.days[1].items[0].theme,'2日目');assert.equal(saved.days[1].items[1].theme,'共通');
+    const changed={...dated,speakers:[]};const kept=store.save(changed,{version:saved.version,days:saved.days},1);assert.equal(kept.days[0].items[0].theme,'初日');
+    assert.throws(()=>store.save(changed,{version:kept.version,days:[{...day,date:'2027-06-08',items:[lecture]}]},1),{status:400});
+  }finally{db.close();}
+});

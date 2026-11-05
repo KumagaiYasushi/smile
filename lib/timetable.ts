@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import type {Seminar} from '../types/seminar.ts';
-import {eventSpeakers} from '../types/speaker.ts';
+import {eventSpeakers,speakerKey} from '../types/speaker.ts';
 import {parseTimetable} from '../types/timetable.ts';
 import type {TimetableData} from '../types/timetable.ts';
 import {createEventRoleStore} from './event-roles.ts';
@@ -18,7 +18,7 @@ export function createTimetableStore(db:Database.Database){
     const roleData=roles.read(event.id);
     const chair_choices=Object.fromEntries(dates.map(date=>[date??'',(roleData.day_assignments?.[date??'']?.CHAIR??[]).filter(person=>roleData.members.some(m=>m.id===person.member_id&&m.active)&&!dayRoleAttendance(roleData.attendance,person.member_id,date??'').blocked).map(person=>({member_id:person.member_id,name:person.name}))]));
     for(const day of days)for(const item of day.items)item.chairs??=[];
-    return {version:row?.version??0,chair_choices,days,event_dates:event.dates,event_times:event.event_times,lectures:eventSpeakers(event).map(p=>({key:`${p.role}:${p.id??p.name}`,name:p.name,theme:p.theme}))};
+    return {version:row?.version??0,chair_choices,days,event_dates:event.dates,event_times:event.event_times,lectures:eventSpeakers(event).map(p=>({key:speakerKey(p),name:p.name,theme:p.theme,...(p.date?{date:p.date}:{})}))};
   }
   return {read,save(event:Seminar,value:unknown,actorId:number):TimetableData{return db.transaction(()=>{
     if(!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId))throw new TaskError('有効な運営メンバーとしてログインしてください',403);
@@ -36,7 +36,7 @@ export function createTimetableStore(db:Database.Database){
           return {...(person??previous!)};
         });
         if(!item.speaker_key){item.speaker_name='';item.theme='';continue;}
-        const person=choices.get(item.speaker_key),previous=current.days.flatMap(p=>p.items).find(p=>p.id===item.id&&p.speaker_key===item.speaker_key);
+        const candidate=choices.get(item.speaker_key),person=candidate&&(!candidate.date||candidate.date===day.date)?candidate:undefined,previous=current.days.filter(p=>p.date===day.date).flatMap(p=>p.items).find(p=>p.id===item.id&&p.speaker_key===item.speaker_key);
         if(!person&&!previous)throw new TaskError('イベントに登録済みの演者を選択してください');
         item.speaker_name=person?.name??previous!.speaker_name;item.theme=person?.theme??previous!.theme;
       }

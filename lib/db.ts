@@ -200,7 +200,7 @@ export function createSeminar(input: SeminarInput, actorId?:number): Seminar {
   const methods=parseSessionMethods(input.session_delivery_methods===undefined?{}:input.session_delivery_methods,dates);
   const repeatFees=parseRepeatFees(input.repeat_fees===undefined?emptyRepeatFees():input.repeat_fees);
   const audience=input.audience_roles===undefined?(input.target_participants?.trim()?null:allAudienceRoles()):parseAudienceRoles(input.audience_roles);
-  const speakers=input.speakers===undefined?null:resolveSpeakers(db,input.speakers,[],actorId);
+  const speakers=input.speakers===undefined?null:resolveSpeakers(db,input.speakers,[],actorId,dates);
   const guest=speakers?.find(p=>p.role==='EXTERNAL_LECTURER');
   const external=speakers!==null?(guest?{status:'YES' as const,id:guest.id,name:guest.name,facility:guest.facility}:{...emptyExternal(),status:'NO' as const}):input.external_lecturer===undefined?emptyExternal():resolveExternalSelection(db,input.external_lecturer);
   const stmt = db.prepare(`
@@ -260,7 +260,7 @@ export function updateSeminar(id: number, input: Partial<SeminarInput>, actorId?
     ...parseSessionMethods(input.session_delivery_methods,dates),
   };
   const repeatFees=input.repeat_fees===undefined?current.repeat_fees:parseRepeatFees(input.repeat_fees);
-  const speakers=input.speakers===undefined?(current.speakers==null?current.speakers:eventSpeakers(current)):resolveSpeakers(db,input.speakers,eventSpeakers(current),actorId);
+  const speakers=input.speakers===undefined?(current.speakers==null?current.speakers:eventSpeakers(current)):resolveSpeakers(db,input.speakers,eventSpeakers(current),actorId,dates);
   const guest=speakers?.find(p=>p.role==='EXTERNAL_LECTURER');
   const external=input.speakers!==undefined?(guest?{status:'YES' as const,id:guest.id,name:guest.name,facility:guest.facility}:{...emptyExternal(),status:'NO' as const}):input.external_lecturer===undefined?current.external_lecturer:resolveExternalSelection(db,input.external_lecturer,current.external_lecturer.status==='UNDECIDED'&&current.lecturer_role==='EXTERNAL_LECTURER'&&current.lecturer_name?{status:'YES',id:null,name:current.lecturer_name,facility:''}:current.external_lecturer);
   const times = input.event_times === undefined ? current.event_times : {

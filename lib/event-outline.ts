@@ -9,7 +9,7 @@ import {AUDIENCE_LABELS} from '../types/audience.ts';
 import type {EventOutline} from '../types/event-outline.ts';
 export function buildEventOutline(event:Seminar):EventOutline {
   const online=event.dates.length?event.dates.every(date=>eventMethodForDate(event,date)==='ONLINE'):event.delivery_method==='ONLINE';
-  const lecturers=eventSpeakers(event).map(p=>({name:p.name,facility:p.facility,...(p.theme?{theme:p.theme}:{})}));
+  const lecturers=eventSpeakers(event).map(p=>({name:p.name,facility:p.facility,...(p.date?{date:p.date}:{}),...(p.theme?{theme:p.theme}:{})}));
   const social=normalizeSocialGathering(event.social_gathering);
   return {
     event_id:event.id,organization:'歯周基本治療研究会',name:event.name,event_type:EVENT_TYPE_LABELS[event.event_type],occurrence:event.occurrence_type?OCCURRENCE_LABELS[event.occurrence_type]:'未設定',content:event.content,
