@@ -101,12 +101,12 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   async function openSystemMenu(){const button=page.getByRole('button',{name:'システムメニューを開く',exact:true});if(await button.isVisible())await button.click();}
   async function selectExternalSpeaker(){
     const section=page.locator('[data-form-section="演者・テーマ"]');await section.evaluate(node=>{node.open=true;});
-    await section.getByRole('button',{name:/^(演者を追加|全開催日共通の演者を追加)$/}).click();
+    const dateAdd=section.getByRole('button',{name:/^\d{4}-\d{2}-\d{2}に演者を追加$/});if(await dateAdd.count())await dateAdd.first().click();else await section.getByRole('button',{name:'演者を追加',exact:true}).click();
     const speaker=section.getByRole('group',{name:'演者 1',exact:true});
     await speaker.getByLabel('演者区分').selectOption('EXTERNAL_LECTURER');
     await speaker.getByLabel('名簿から選択').selectOption({label:'UI検証の外部講師 / UI検証の編集済み施設'});
   }
-  async function expandEventForm(){await page.waitForFunction(()=>{const form=document.querySelector('form[data-stable-editor]');return form&&Object.keys(form).some(key=>key.startsWith('__reactProps$'));});await page.locator('details[data-form-section]').evaluateAll(sections=>sections.forEach(section=>{section.open=true;}));}
+  async function expandEventForm(){await page.waitForFunction(()=>{const form=document.querySelector('form[data-stable-editor]');return form&&Object.keys(form).some(key=>key.startsWith('__reactProps$'));});await page.locator('details[data-form-section],details[data-speaker-editor]').evaluateAll(sections=>sections.forEach(section=>{section.open=true;}));}
   const eventName = 'UI検証用の架空セミナー';
   const method = ({ 1280: 'ONSITE', 390: 'ONLINE', 320: 'HYBRID' })[page.viewportSize().width];
   const methodLabels = { ONSITE: '現地開催', ONLINE: 'オンライン', HYBRID: '現地開催＋オンライン' };

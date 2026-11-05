@@ -116,7 +116,10 @@ for(const [name,viewport] of [['speaker-dates-desktop',{width:1280,height:900}],
       await card.getByLabel('テーマ',{exact:true}).fill(`第${i%2+1}回の${i<2?'外部講師':'サポート'}テーマ`);
     }
     for(const date of dates)await expect(page.getByRole('region',{name:`${date}の演者登録`,exact:true}).getByText('登録済み：2名',{exact:true})).toBeVisible();
-    await expect(page.getByRole('region',{name:'全開催日共通の演者登録',exact:true}).getByRole('group',{name:/^演者 \d+$/})).toHaveCount(0);
+    await expect(page.getByRole('region',{name:'全開催日共通の演者登録',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'全開催日共通の演者を追加',exact:true})).toHaveCount(0);
+    await page.getByRole('button',{name:'入力を閉じる',exact:true}).click();await expect(page.locator('[data-speaker-editor][open]')).toHaveCount(0);
+    assert.ok(await page.locator('[data-form-section="演者・テーマ"]').evaluate(el=>el.getBoundingClientRect().height)<1300,'演者4名をコンパクトな一覧で表示');
     await layout('日別の演者登録');await screenshot('registration');
     await page.route(`${base}/api/seminars`,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'日別演者の保存失敗テスト'})}),{times:1});
     await page.getByRole('button',{name:'登録する',exact:true}).click();await expect(page.getByRole('alert').filter({hasText:'日別演者の保存失敗テスト'})).toBeVisible();
@@ -130,6 +133,7 @@ for(const [name,viewport] of [['speaker-dates-desktop',{width:1280,height:900}],
     for(let i=0;i<4;i++){const card=page.getByRole('group',{name:`演者 ${i+1}`,exact:true});await expect(card.getByLabel('登壇日')).toHaveValue(dates[i%2]);await expect(card.getByLabel('テーマ')).toHaveValue(saved.speakers[i].theme);}
     await expect(page.getByRole('region',{name:`${dates[0]}の演者登録`,exact:true}).getByRole('group',{name:'演者 1',exact:true})).toBeVisible();
     await expect(page.getByRole('region',{name:`${dates[1]}の演者登録`,exact:true}).getByRole('group',{name:'演者 2',exact:true})).toBeVisible();
+    await page.getByRole('group',{name:'演者 2',exact:true}).locator('summary').click();await expect(page.locator('[data-speaker-editor][open]')).toHaveCount(1);
     await page.getByRole('group',{name:'演者 2',exact:true}).getByLabel('テーマ').fill('第2回だけ変更したテーマ');await page.getByRole('button',{name:'変更を保存',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
     const updated=await (await page.request.get(`${base}/api/seminars/${eventId}`)).json();assert.equal(updated.speakers[0].theme,saved.speakers[0].theme);assert.equal(updated.speakers[1].theme,'第2回だけ変更したテーマ');
   });
@@ -146,4 +150,19 @@ for(const [name,viewport] of [['speaker-dates-desktop',{width:1280,height:900}],
     assert.equal((await page.request.put(`${base}/api/seminars/${eventId}/timetable`,{headers:{Origin:base},data:{version:timetable.version,days:wrong}})).status(),400);
     await layout('日別の講演候補');await screenshot('timetable');
   });
+  await step('以前の共通設定を消さずに登壇日へ振り分ける',async()=>{
+    const person={...saved.speakers[2]};delete person.date;
+    const response=await page.request.post(`${base}/api/seminars`,{headers:{Origin:base},data:{name:'旧演者設定の確認',occurrence_type:'MULTIPLE',dates,session_delivery_methods:Object.fromEntries(dates.map(date=>[date,'ONSITE'])),speakers:[person]}});assert.equal(response.status(),201);
+    const legacy=await response.json();await page.goto(`${base}/seminars/${legacy.id}/edit`);await page.locator('[data-form-section="演者・テーマ"] > summary').click();
+    const pending=page.getByRole('region',{name:'登壇日の指定が必要な演者',exact:true});await expect(pending).toContainText(person.name);
+    await expect(page.getByRole('button',{name:'全開催日共通の演者を追加',exact:true})).toHaveCount(0);
+    await page.getByRole('button',{name:'変更を保存',exact:true}).click();
+    const date=pending.getByLabel('登壇日',{exact:true});await expect(date).toBeVisible();await expect(date).toHaveAttribute('aria-invalid','true');
+    await expect(date.locator('option').filter({hasText:'全開催日共通'})).toHaveCount(0);
+    await date.selectOption(dates[1]);await expect(pending).toHaveCount(0);
+    const dated=page.getByRole('region',{name:`${dates[1]}の演者登録`,exact:true});await expect(dated).toContainText(person.name);await expect(dated.getByLabel('テーマ')).toHaveValue(person.theme);
+    await page.getByRole('button',{name:'変更を保存',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
+    const result=await (await page.request.get(`${base}/api/seminars/${legacy.id}`)).json();assert.equal(result.speakers[0].date,dates[1]);assert.equal(result.speakers[0].theme,person.theme);
+  });
+
 });

@@ -119,7 +119,7 @@ await harness('speaker-selection-task-mail', {width:390,height:844}, async ({pag
     }
     const section=page.locator('[data-form-section="演者・テーマ"]');
     await expect(section.locator('textarea')).toHaveCount(5);
-    for(let i=0;i<5;i++)await section.locator('textarea').nth(i).fill(`演者テーマ${i+1}`);
+    for(let i=0;i<5;i++){const card=section.getByRole('group',{name:`演者 ${i+1}`,exact:true});if(!await card.locator('details').evaluate(el=>el.open))await card.locator('summary').click();await card.getByLabel('テーマ',{exact:true}).fill(`演者テーマ${i+1}`);}
     await layout('複数選択');await screenshot('speaker-selection');
     await page.getByRole('button',{name:'登録する',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
   });
@@ -135,6 +135,7 @@ await harness('speaker-selection-task-mail', {width:390,height:844}, async ({pag
     const first=page.getByRole('group',{name:'演者 1',exact:true}),second=page.getByRole('group',{name:'演者 2',exact:true});
     await expect(first.getByLabel('お車代（円）',{exact:true})).toHaveValue('1000');
     await expect(second.getByLabel('謝礼（円）',{exact:true})).toHaveValue('20000');
+    await first.locator('summary').click();
     await first.getByRole('button',{name:'演者 1 を削除',exact:true}).click();await expect(section.locator('textarea')).toHaveCount(4);
     await page.getByRole('button',{name:'変更を保存',exact:true}).click();await page.waitForURL(/\/seminars\/\d+$/);
     const updated=await (await page.request.get(`${base}/api/seminars/${id}`)).json();assert.equal(updated.speakers.length,4);assert.equal(updated.speakers[0].theme,'演者テーマ2');assert.deepEqual(updated.external_payment,{travel:2000,honorarium:20000});
