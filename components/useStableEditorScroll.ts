@@ -13,7 +13,7 @@ export function useStableEditorScroll(){
   function remember(){position.current={x:window.scrollX,y:window.scrollY};if(frame.current!==null)cancelAnimationFrame(frame.current);frame.current=requestAnimationFrame(()=>{frame.current=null;restore();});}
   return {
     onSubmitCapture(){cancel();},
-    onChangeCapture(event:FormEvent<HTMLFormElement>){const target=event.target;if(!(target instanceof HTMLElement)||target.closest('dialog'))return;if(target.getAttribute('aria-label')==='入力する項目へ移動'){cancel();return;}remember();},
+    onChangeCapture(event:FormEvent<HTMLFormElement>){const target=event.target;if(!(target instanceof HTMLElement)||target.closest('dialog'))return;remember();},
     onClickCapture(event:MouseEvent<HTMLFormElement>){const target=event.target;if(!(target instanceof Element)||target.closest('dialog'))return;const control=target.closest('summary,button');if(!control)return;if(control instanceof HTMLButtonElement&&(control.type==='submit'||control.getAttribute('aria-label')?.includes('ダイアル'))){cancel();return;}remember();},
   };
 }

@@ -103,7 +103,7 @@ await harness('speaker-selection-task-mail', {width:390,height:844}, async ({pag
     await page.goto(`${base}/seminars/new`);
     await page.getByLabel('セミナー名',{exact:false}).fill('複数演者選択の検証');
     await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
-    await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
+    await page.locator('[data-form-section="演者・テーマ"] > summary').click();
     await expect(page.getByRole('heading',{name:'演者登録（複数名登録可）',exact:true})).toBeVisible();
     await expect(page.getByRole('group',{name:'名簿から演者を複数選択',exact:true})).toHaveCount(0);
     for(const [i,role] of ['EXTERNAL_LECTURER','EXTERNAL_LECTURER','SOCIETY_LECTURER','SOCIETY_LECTURER','SOCIETY_SUPPORT'].entries()){
@@ -128,7 +128,7 @@ await harness('speaker-selection-task-mail', {width:390,height:844}, async ({pag
   const finance=await (await page.request.get(`${base}/api/seminars/${id}/finance`)).json();assert.equal(finance.estimate.travel,3000);assert.equal(finance.estimate.honorarium,30000);
   await step('再編集で演者とテーマを保持し選択解除を反映',async()=>{
     await page.goto(`${base}/seminars/${id}/edit`);
-    await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
+    await page.locator('[data-form-section="演者・テーマ"] > summary').click();
     const section=page.locator('[data-form-section="演者・テーマ"]');
     await expect(section.locator('textarea').nth(4)).toHaveValue('演者テーマ5');
     await expect(page.getByRole('heading',{name:'演者登録（複数名登録可）',exact:true})).toBeVisible();

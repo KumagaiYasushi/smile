@@ -106,7 +106,7 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await speaker.getByLabel('演者区分').selectOption('EXTERNAL_LECTURER');
     await speaker.getByLabel('名簿から選択').selectOption({label:'UI検証の外部講師 / UI検証の編集済み施設'});
   }
-  async function expandEventForm(){await page.getByRole('button',{name:'すべて開く',exact:true}).click();}
+  async function expandEventForm(){await page.waitForFunction(()=>{const form=document.querySelector('form[data-stable-editor]');return form&&Object.keys(form).some(key=>key.startsWith('__reactProps$'));});await page.locator('details[data-form-section]').evaluateAll(sections=>sections.forEach(section=>{section.open=true;}));}
   const eventName = 'UI検証用の架空セミナー';
   const method = ({ 1280: 'ONSITE', 390: 'ONLINE', 320: 'HYBRID' })[page.viewportSize().width];
   const methodLabels = { ONSITE: '現地開催', ONLINE: 'オンライン', HYBRID: '現地開催＋オンライン' };
@@ -119,21 +119,20 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     assert.ok(cookie?.httpOnly && cookie.secure && cookie.sameSite === 'Strict');
     await layout('イベント一覧');
   });
-  await step('登録画面の折りたたみ・項目移動・閉じた欄のエラー表示',async()=>{
+  await step('登録画面の折りたたみ・閉じた欄のエラー表示',async()=>{
     await page.goto(`${base}/seminars/new`);
     const sections=page.locator('details[data-form-section]');await expect(sections).toHaveCount(10);
     await expect(page.locator('details[data-form-section][open]')).toHaveCount(1);
     const compact=await page.evaluate(()=>document.documentElement.scrollHeight);
     await layout('折りたたみ式イベント登録');await screenshot('compact-registration');
     await expandEventForm();const expanded=await page.evaluate(()=>document.documentElement.scrollHeight);assert.ok(expanded>compact*2);
-    await page.getByRole('button',{name:'すべて閉じる',exact:true}).click();await expect(page.locator('details[data-form-section][open]')).toHaveCount(0);
-    await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
-    await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('演者・テーマ');
+    for(const section of await page.locator('details[data-form-section]').all())if(await section.evaluate(el=>el.open))await section.locator(':scope > summary').click();await expect(page.locator('details[data-form-section][open]')).toHaveCount(0);
+    await page.locator('[data-form-section="演者・テーマ"] > summary').click();
     await page.getByRole('button',{name:'演者を追加',exact:true}).click();
     await page.getByRole('group',{name:'演者 1',exact:true}).getByLabel('演者区分').selectOption('EXTERNAL_LECTURER');
-    await page.getByLabel('入力する項目へ移動',{exact:true}).selectOption('基本情報');
+    await page.locator('[data-form-section="基本情報"] > summary').click();
     await page.getByLabel('セミナー名',{exact:false}).fill('折りたたみの入力確認');await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');
-    await page.getByRole('button',{name:'すべて閉じる',exact:true}).click();
+    for(const section of await page.locator('details[data-form-section]').all())if(await section.evaluate(el=>el.open))await section.locator(':scope > summary').click();
     await page.getByRole('button',{name:'登録する',exact:true}).click();
     const external=page.locator('[data-form-section="演者・テーマ"]').getByLabel('氏名',{exact:true});await expect(external).toBeVisible();await expect(external).toHaveAttribute('aria-invalid','true');
     const actions=page.locator('[aria-label="イベントの保存操作"]');assert.equal(await actions.evaluate(el=>getComputedStyle(el).position),'static');

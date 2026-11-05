@@ -9,12 +9,13 @@ import { ROSTER_RESPONSE_LABELS, rosterColor } from '@/types/staff-roster';
 import type { RosterResponse, StaffRoster, StaffRosterRow } from '@/types/staff-roster';
 
 type SaveResult = { person:StaffPerson; roster:StaffRoster };
-export default function StaffRosterBoard({ eventId, roster, disabled, filter, onSaved, onBusyChange, onDraftChange }: {
+export default function StaffRosterBoard({ eventId, roster, disabled, filter, onSaved, onBusyChange, onDraftChange, date:controlledDate, onDateChange }: {
+  date?:string;onDateChange?:(date:string)=>void;
   eventId?:string; roster:StaffRoster; disabled:boolean; filter:StaffRole|'ALL'; onSaved?:(result:SaveResult)=>Promise<void>; onBusyChange?:(busy:boolean)=>void; onDraftChange?:(row:StaffRosterRow,date:string,response:RosterResponse)=>void;
 }) {
   const dates = attendanceDateKeys(roster.dates);
   const [date,setDate] = useState(dates[0]);
-  const selectedDate = dates.includes(date) ? date : dates[0];
+  const selectedDate = dates.includes(controlledDate??date) ? controlledDate??date : dates[0];
   const [pending,setPending] = useState<number|null>(null);
   const [error,setError] = useState('');
   const [message,setMessage] = useState('');
@@ -37,7 +38,7 @@ export default function StaffRosterBoard({ eventId, roster, disabled, filter, on
     <p className="text-sm text-slate-600">{onDraftChange?'このイベントに参加できる方の出欠を選択してください。イベントの保存ボタンでまとめて保存します。':'このイベントに参加できる方の出欠を選択してください。選ぶと保存します。'}複数回のイベントは開催日を切り替えて登録します。</p>
     <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm"><span className="font-bold text-green-700">出席（午前・午後のみを含む）：緑</span><span className="text-slate-500">欠席：グレー</span><span className="text-black">未登録：黒</span></p>
     <label className="block max-w-sm text-sm font-medium">出欠を登録する開催日
-      <select aria-label="出欠を登録する開催日" disabled={disabled||pending!==null} value={selectedDate} onChange={e=>{setDate(e.target.value);setError('');setMessage('');}} className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2">
+      <select aria-label="出欠を登録する開催日" disabled={disabled||pending!==null} value={selectedDate} onChange={e=>{setDate(e.target.value);onDateChange?.(e.target.value);setError('');setMessage('');}} className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2">
         {dates.map(date=><option key={date} value={date}>{attendanceDateLabel(date)}</option>)}
       </select>
     </label>

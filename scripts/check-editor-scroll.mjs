@@ -101,12 +101,12 @@ async function login(page, password, email = 'member@example.invalid') {
 for(const [name,viewport] of [['editor-scroll-desktop',{width:1280,height:900}],['editor-scroll-mobile',{width:390,height:844}],['editor-scroll-narrow',{width:320,height:700}]])await harness(name,viewport,async({page,password,step,layout,screenshot})=>{
   await login(page,password);await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
   await page.goto(`${base}/seminars/new`);
-  await page.getByRole('button',{name:'すべて開く',exact:true}).click();
-  const menu=page.getByLabel('入力する項目へ移動',{exact:true});
+  await page.waitForFunction(()=>{const form=document.querySelector('form[data-stable-editor]');return form&&Object.keys(form).some(key=>key.startsWith('__reactProps$'));});await page.locator('details[data-form-section]').evaluateAll(sections=>sections.forEach(section=>{section.open=true;}));
+  async function moveTo(title){await page.locator(`[data-form-section="${title}"] > summary`).scrollIntoViewIfNeeded();}
   async function settled(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
   async function unchanged(before){await settled();assert.ok(Math.abs(await page.evaluate(()=>scrollY)-before)<=2,'操作中のスクロール位置を保持');}
   await step('入力と懇親会の展開で画面位置を保持',async()=>{
-    await menu.selectOption('懇親会');await settled();
+    await moveTo('懇親会');await settled();
     const status=page.getByLabel('懇親会の開催',{exact:true});await status.focus();await settled();
     const before=await page.evaluate(()=>scrollY);await status.selectOption('HELD');await unchanged(before);
     const venue=page.getByLabel('懇親会の場所・住所',{exact:true});await venue.scrollIntoViewIfNeeded();await venue.focus();await settled();
@@ -114,11 +114,11 @@ for(const [name,viewport] of [['editor-scroll-desktop',{width:1280,height:900}],
     if(viewport.width<640)assert.ok(await venue.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))>=16,'入力時の自動拡大を抑える文字サイズ');
     await screenshot('stable-social-edit');
   });
-  await step('開閉位置を保ちながら通常のスクロールと項目移動を維持',async()=>{
-    await menu.selectOption('基本情報');await settled();
+  await step('開閉位置を保ちながら通常のスクロールを維持',async()=>{
+    await moveTo('基本情報');await settled();
     const summary=page.locator('[data-form-section="基本情報"] > summary');await summary.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));await settled();
     const before=await page.evaluate(()=>scrollY);await summary.click();await unchanged(before);await summary.click();await unchanged(before);
-    const start=await page.evaluate(()=>scrollY);await menu.selectOption('メモ');await settled();assert.ok(await page.evaluate(()=>scrollY)>start+100,'明示した項目へは移動できる');
+    const start=await page.evaluate(()=>scrollY);await moveTo('メモ');await settled();assert.ok(await page.evaluate(()=>scrollY)>start+100,'明示した項目へは移動できる');
     const old=await page.evaluate(()=>scrollY);await page.mouse.wheel(0,-250);await page.waitForFunction(y=>scrollY<y-20,old);
     await layout('位置を保つ編集画面');
   });

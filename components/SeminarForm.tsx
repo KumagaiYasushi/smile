@@ -37,6 +37,7 @@ type Props = {
 export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   const [speakers,setSpeakers]=useState(()=>eventSpeakers(initial??{}));
   const stableScroll=useStableEditorScroll();
+  const [roleDate,setRoleDate]=useState(initial?.dates?.[0]??'');
   const router = useRouter();
   const formRef=useRef<HTMLFormElement>(null);
   const registration=useEventRegistration(initial?.id);
@@ -113,7 +114,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       const methods=parseSessionMethods(Object.fromEntries(validDates.map(date=>[date,sessionMethods[date]])),validDates);
       const repeat=parseRepeatFees(Object.fromEntries(Object.entries(repeatFees).map(([role,fee])=>[role,fee===''?null:Number(fee)])));
       const times = parseEventTimes(Object.fromEntries(Object.entries(eventTimes).filter(([date]) => validDates.includes(date))), validDates);
-      const roleChanges=roles.payload();
+      const roleChanges=roles.payload(validDates);
       await onSubmit({
         registration: {...(registration.payload(validDates)??{schedule:[...validDates].sort(),attendance:[],lunch:[]}),meetings:meetings.payload(),...(roleChanges?{roles:roleChanges}: {})},
         speakers,
@@ -154,10 +155,6 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
   return (
     <form ref={formRef} data-stable-editor {...stableScroll} noValidate onSubmit={handleSubmit} className="space-y-4">
-      <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-sky-100 bg-white/95 p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 text-sm">項目へ移動<select aria-label="入力する項目へ移動" defaultValue="" onChange={e=>{const section=[...formRef.current!.querySelectorAll<HTMLDetailsElement>('[data-form-section]')].find(p=>p.dataset.formSection===e.target.value);if(section){section.open=true;section.scrollIntoView({behavior:'instant',block:'start'});}e.currentTarget.value='';}} className="min-w-0 flex-1 rounded-lg border bg-white p-2"><option value="">選択してください</option>{['基本情報','演者・テーマ','役割担当','イベント当日の出欠','打ち合わせ','参加費','会場','昼食の手配','懇親会','メモ'].map(title=><option key={title} value={title}>{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</option>)}</select></label>
-        <button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=true;})} className="rounded-lg border px-3 py-2 text-sm">すべて開く</button><button type="button" onClick={()=>formRef.current?.querySelectorAll<HTMLDetailsElement>('[data-form-section]').forEach(p=>{p.open=false;})} className="rounded-lg border px-3 py-2 text-sm">すべて閉じる</button></div>
-      </div>
       {error && (
         <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
           {error}
@@ -245,18 +242,18 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
       <Section title="演者・テーマ"><SpeakerFields value={speakers} onChange={setSpeakers}/></Section>
 
-      <Section title="役割担当">
-        {roles.loading&&<p className="text-sm text-slate-500">担当・名簿を読み込み中…</p>}
-        {roles.error&&<p role="alert" className="text-sm text-red-700">{roles.error}</p>}
-        <button type="button" disabled={saving||roles.loading} onClick={roles.reload} className="text-sm text-sky-800 underline">担当・名簿を再取得</button>
-        <EventRoleFields data={roles.data} disabled={saving||roles.loading||!!roles.error} onToggle={roles.toggle}/>
-      </Section>
-
       <Section title="イベント当日の出欠">
         {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}
         {registration.error&&<p role="alert" className="text-sm text-red-700">{registration.error}</p>}
         {!registration.loading&&<button type="button" disabled={saving} onClick={registration.reload} className="text-sm text-sky-800 underline">出欠・昼食を再取得</button>}
-        {registration.roster&&<StaffRosterBoard eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading||roles.loading} filter="ALL" onDraftChange={registration.setResponse}/>}
+        {registration.roster&&<StaffRosterBoard date={roleDate} onDateChange={setRoleDate} eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading||roles.loading} filter="ALL" onDraftChange={(row,date,response)=>{registration.setResponse(row,date,response);if(registration.roster)roles.removeAbsentDayAssignees({...registration.roster,dates:validDates,rows:registration.roster.rows.map(p=>p.member_id===row.member_id?{...p,responses:{...p.responses,[date]:response}}:p)});}}/>}
+      </Section>
+
+      <Section title="役割担当">
+        {roles.loading&&<p className="text-sm text-slate-500">担当・名簿を読み込み中…</p>}
+        {roles.error&&<p role="alert" className="text-sm text-red-700">{roles.error}</p>}
+        <button type="button" disabled={saving||roles.loading} onClick={roles.reload} className="text-sm text-sky-800 underline">担当・名簿を再取得</button>
+        <EventRoleFields date={roleDate} onDateChange={setRoleDate} data={roles.data} attendance={registration.roster?{...registration.roster,dates:validDates}:undefined} disabled={saving||roles.loading||registration.loading||!!roles.error||!!registration.error} onToggle={roles.toggle}/>
       </Section>
 
       <Section title="打ち合わせ">

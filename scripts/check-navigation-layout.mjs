@@ -124,7 +124,7 @@ for(const [name,viewport] of [['navigation-desktop',{width:1280,height:900}],['n
     }
   });
   await step('編集フォームも画面内に収め通常のスクロールを維持',async()=>{
-    await page.goto(`${base}/seminars/new`);await page.getByRole('button',{name:'すべて開く',exact:true}).click();await layout('全項目を開いたフォーム');
+    await page.goto(`${base}/seminars/new`);await page.waitForFunction(()=>{const form=document.querySelector('form[data-stable-editor]');return form&&Object.keys(form).some(key=>key.startsWith('__reactProps$'));});await page.locator('details[data-form-section]').evaluateAll(sections=>sections.forEach(section=>{section.open=true;}));await layout('全項目を開いたフォーム');
     await page.getByLabel('セミナー名',{exact:false}).fill('幅が揃った入力フォーム');await screenshot('event-form');
     const old=await page.evaluate(()=>scrollY);await page.mouse.wheel(0,250);await page.waitForFunction(y=>scrollY>y+20,old);
   });
