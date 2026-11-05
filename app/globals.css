@@ -74,3 +74,11 @@ form[data-stable-editor] {
   .app-workspace { border: 0 !important; box-shadow: none !important; }
   .app-workspace-content { padding: 0 !important; }
 }
+
+/* Improve secondary text contrast while preserving status and link colors. */
+@layer utilities {
+  .app-workspace-content :where(.text-slate-400,.text-gray-400) { color: #64748b; }
+  .app-workspace-content :where(.text-slate-500,.text-gray-500) { color: #475569; }
+  .app-workspace-content :where(.text-slate-600,.text-gray-600) { color: #334155; }
+  .app-workspace-content :where(input,textarea)::placeholder { color: #64748b; opacity: 1; }
+}

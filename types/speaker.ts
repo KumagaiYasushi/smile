@@ -32,3 +32,9 @@ export function speakerPaymentTotal(people:Speaker[]):ExternalPayment{
 }
 
 export function speakerKey(person:Speaker){return `${person.role}:${person.id??person.name}${person.date?`@${person.date}`:''}`;}
+
+export function speakerAttendanceWarning(people:Speaker[],person:{member_id?:number;name:string;role:string},date:string,response:string):string|null {
+  if(!['SOCIETY_LECTURER','SOCIETY_SUPPORT'].includes(person.role)||!['ABSENT','AM_ONLY','PM_ONLY'].includes(response))return null;
+  const speaking=people.some(p=>p.role===person.role&&(!p.date||p.date===date)&&(p.id!==null&&person.member_id!==undefined?p.id===person.member_id:p.name===person.name));
+  return speaking?`${person.name}さんは${date||'このイベント'}の演者として登録されています。「${({ABSENT:'欠席',AM_ONLY:'午前のみ',PM_ONLY:'午後のみ'} as Record<string,string>)[response]}」に変更しますか？登壇予定を確認してください。`:null;
+}

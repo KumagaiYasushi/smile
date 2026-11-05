@@ -1,4 +1,4 @@
-import {isTenMinuteTime} from './time-input.ts';
+import {isMinuteTime} from './time-input.ts';
 import type {EventTimes} from './event-schedule.ts';
 import {TaskError,parseVersion} from './task.ts';
 import {requireDate} from './task-template.ts';
@@ -22,13 +22,13 @@ export function parseTimetable(value:unknown):Timetable {
   const days=body.days.map(value=>{const day=object(value);
     if(Object.keys(day).some(k=>!['date','start','items'].includes(k)))throw new TaskError('日程の入力形式が不正です');
     const date=day.date===null?null:requireDate(day.date);if(dates.has(date))throw new TaskError('タイムスケジュールの日程が重複しています');dates.add(date);
-    if(!isTenMinuteTime(day.start))throw new TaskError('開始時刻は10分単位で入力してください');
+    if(!isMinuteTime(day.start,5))throw new TaskError('開始時刻は5分単位で入力してください');
     if(!Array.isArray(day.items)||day.items.length>200)throw new TaskError('各日程の項目は200件以内で入力してください');
     const items=day.items.map(value=>{const p=object(value);count++;
       if(Object.keys(p).some(k=>!['id','type','title','minutes','speaker_key','speaker_name','theme','chairs'].includes(k)))throw new TaskError('タイムスケジュール項目の入力形式が不正です');
       if(typeof p.id!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(p.id)||ids.has(p.id))throw new TaskError('項目IDが重複しているか不正です');ids.add(p.id);
       if(typeof p.type!=='string'||!Object.hasOwn(TIMETABLE_TYPES,p.type)||typeof p.title!=='string'||!p.title.trim()||p.title.length>300)throw new TaskError('項目名は1〜300文字で入力してください');
-      if(typeof p.minutes!=='number'||!Number.isSafeInteger(p.minutes)||p.minutes<1||p.minutes>1440)throw new TaskError('所要時間は1〜1440分の整数で入力してください');
+      if(typeof p.minutes!=='number'||!Number.isSafeInteger(p.minutes)||p.minutes<5||p.minutes>1440||p.minutes%5!==0)throw new TaskError('所要時間は5〜1440分の5分単位で入力してください');
       if(p.speaker_key!==null&&(typeof p.speaker_key!=='string'||p.speaker_key.length>500||p.type!=='LECTURE'))throw new TaskError('演者は講演にのみ設定できます');
       for(const key of ['speaker_name','theme'])if(typeof p[key]!=='string'||(p[key] as string).length>2000)throw new TaskError('演者情報の入力形式が不正です');
       const rawChairs=p.chairs===undefined?[]:p.chairs;

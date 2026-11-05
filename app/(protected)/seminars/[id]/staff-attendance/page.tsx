@@ -2,6 +2,8 @@
 
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import {eventSpeakers,speakerAttendanceWarning} from '@/types/speaker';
+import type {Speaker} from '@/types/speaker';
 import StaffRosterBoard from '@/components/StaffRosterBoard';
 import type { StaffRoster } from '@/types/staff-roster';
 import SocietyMemberPicker from '@/components/SocietyMemberPicker';
@@ -11,10 +13,10 @@ import type { StaffPerson, StaffInput, StaffRole, StaffResponse, StaffAttendance
 
 const inputClass = 'mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const buttonClass = 'rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-50';
-type Result = StaffAttendance & { history: StaffHistory[]; roster:StaffRoster };
+type Result = StaffAttendance & { history: StaffHistory[]; roster:StaffRoster;speakers:Speaker[] };
 
-function AttendanceEditor({ initial, dates, onSave, onCancel }: {
-  initial: StaffPerson | null; dates: string[]; onSave: (input: StaffInput) => Promise<void>; onCancel: () => void;
+function AttendanceEditor({ initial, dates, speakers, onSave, onCancel }: {
+  initial: StaffPerson | null; dates: string[]; speakers:Speaker[]; onSave: (input: StaffInput) => Promise<void>; onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [role, setRole] = useState<StaffRole | ''>(initial ? Object.hasOwn(STAFF_SELECTABLE_ROLE_LABELS, initial.role) ? initial.role : '' : 'SOCIETY_SUPPORT');
@@ -44,7 +46,7 @@ function AttendanceEditor({ initial, dates, onSave, onCancel }: {
     <fieldset className="space-y-3">
       <legend className="mb-2 text-sm font-bold">開催日ごとの出欠予定</legend>
       {attendanceDateKeys(dates).map(date => <label key={date} className="block text-sm">{attendanceDateLabel(date)}
-        <select aria-label={`${attendanceDateLabel(date)}の出欠予定`} value={responses[date]} onChange={e => setResponses({ ...responses, [date]: e.target.value as StaffResponse })} className={inputClass}>
+        <select aria-label={`${attendanceDateLabel(date)}の出欠予定`} value={responses[date]} onChange={e => {const warning=speakerAttendanceWarning(speakers,{name,role},date,e.target.value);if(warning&&!confirm(warning))return;setResponses({ ...responses, [date]: e.target.value as StaffResponse });}} className={inputClass}>
           {Object.entries(STAFF_RESPONSE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>)}
@@ -66,13 +68,13 @@ export default function StaffAttendancePage({ params }: { params: Promise<{ id: 
   const [rosterBusy,setRosterBusy]=useState(false);
   const [editor, setEditor] = useState<StaffPerson | null | undefined>(undefined);
   const [filter, setFilter] = useState<StaffRole | 'ALL'>('ALL');
-  const load = useCallback(async () => { const result: Result = await apiJson(path); setData(result); }, [path]);
+  const load = useCallback(async () => { const [result,event]=await Promise.all([apiJson(path),apiJson(`/api/seminars/${id}`)]);setData({...result,speakers:eventSpeakers(event)}); }, [path,id]);
   useEffect(() => {
     const controller = new AbortController();
-    apiJson(path, { signal: controller.signal }).then(setData)
+    Promise.all([apiJson(path,{signal:controller.signal}),apiJson(`/api/seminars/${id}`,{signal:controller.signal})]).then(([result,event])=>setData({...result,speakers:eventSpeakers(event)}))
       .catch(error => { if (!controller.signal.aborted) setError(error.message); });
     return () => controller.abort();
-  }, [path]);
+  }, [path,id]);
   async function action(work: () => Promise<void>) {
     setBusy(true); setError(''); setMessage('');
     try { await work(); } catch (error) { setError(error instanceof Error ? error.message : '処理に失敗しました'); }
@@ -100,7 +102,7 @@ export default function StaffAttendancePage({ params }: { params: Promise<{ id: 
     {!data && !error && <p>読み込み中…</p>}
     {data && <>
       <p className="text-xs text-slate-500">取り込みはイベント基本情報の講師名とサポートメンバー名を使用します。氏名・役割が同じ登録は追加しません。</p>
-      {editor !== undefined && <AttendanceEditor key={editor?.id ?? 'new'} initial={editor} dates={data.dates} onCancel={() => setEditor(undefined)} onSave={async input => {
+      {editor !== undefined && <AttendanceEditor key={editor?.id ?? 'new'} initial={editor} speakers={data.speakers} dates={data.dates} onCancel={() => setEditor(undefined)} onSave={async input => {
         setBusy(true);
         try {
           const result = await apiJson(editor ? `${path}/${editor.id}` : path, {
@@ -119,7 +121,7 @@ export default function StaffAttendancePage({ params }: { params: Promise<{ id: 
           {Object.entries(STAFF_ROLE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <StaffRosterBoard eventId={id} roster={data.roster} disabled={busy||editor!==undefined} filter={filter} onBusyChange={setRosterBusy} onSaved={async({person,roster})=>{
+      <StaffRosterBoard speakers={data.speakers} eventId={id} roster={data.roster} disabled={busy||editor!==undefined} filter={filter} onBusyChange={setRosterBusy} onSaved={async({person,roster})=>{
         setData(current=>current?{...current,roster,people:[...current.people.filter(item=>item.id!==person.id),person]}:current);
         setMessage(''); setError('');
         await load().catch(()=>setError('出欠は保存済みですが履歴を取得できませんでした。「最新情報を取得」で確認してください'));

@@ -4,7 +4,7 @@ import Database from 'better-sqlite3';
 import {resolveSpeakers} from '../lib/speakers.ts';
 import {createSocietyMemberStore} from '../lib/society-members.ts';
 import {createExternalLecturerStore} from '../lib/external-lecturers.ts';
-import {eventSpeakers,speakerPaymentSummary,speakerKey} from '../types/speaker.ts';
+import {eventSpeakers,speakerPaymentSummary,speakerKey,speakerAttendanceWarning} from '../types/speaker.ts';
 import {defaultTaskMessage} from '../types/task-message.ts';
 test('multiple speaker categories retain independent themes and new external speakers are reusable directory entries',()=>{
   const db=new Database(':memory:');db.exec('CREATE TABLE auth_users(id INTEGER PRIMARY KEY,active INTEGER);INSERT INTO auth_users VALUES(1,1)');
@@ -86,4 +86,17 @@ test('speakers can repeat on different dates with independent themes and payment
     const task={title:'依頼',description:'タスクの依頼文を優先',due_date:null};const message=defaultTaskMessage({name:'日別イベント',dates,speakers:saved},task);
     assert.ok(message.body.includes('2027-06-01 ／ 日別の外部講師：初日のテーマ'));assert.ok(message.body.includes('2027-06-08 ／ 日別の外部講師：2日目のテーマ'));assert.ok(message.body.includes(task.description));
   }finally{db.close();}
+});
+
+
+test('attendance warnings match society speakers on the selected date and all three restricted responses',()=>{
+  const speakers=[{role:'SOCIETY_LECTURER',id:1,name:'講師A',facility:'',theme:'',date:'2027-06-01'},{role:'SOCIETY_SUPPORT',id:2,name:'サポートB',facility:'',theme:'',date:'2027-06-08'}];
+  for(const response of ['ABSENT','AM_ONLY','PM_ONLY']){
+    assert.match(speakerAttendanceWarning(speakers,{member_id:1,name:'講師A',role:'SOCIETY_LECTURER'},'2027-06-01',response),/演者/);
+    assert.match(speakerAttendanceWarning(speakers,{member_id:2,name:'サポートB',role:'SOCIETY_SUPPORT'},'2027-06-08',response),/演者/);
+    assert.equal(speakerAttendanceWarning(speakers,{member_id:1,name:'講師A',role:'SOCIETY_LECTURER'},'2027-06-08',response),null);
+  }
+  for(const response of ['ATTENDING','UNANSWERED'])assert.equal(speakerAttendanceWarning(speakers,{member_id:1,name:'講師A',role:'SOCIETY_LECTURER'},'2027-06-01',response),null);
+  assert.equal(speakerAttendanceWarning(speakers,{member_id:99,name:'講師A',role:'SOCIETY_LECTURER'},'2027-06-01','ABSENT'),null);
+  assert.match(speakerAttendanceWarning(speakers,{name:'講師A',role:'SOCIETY_LECTURER'},'2027-06-01','ABSENT'),/演者/);
 });

@@ -1,5 +1,7 @@
 'use client';
 
+import {speakerAttendanceWarning} from '@/types/speaker';
+import type {Speaker} from '@/types/speaker';
 import { useState } from 'react';
 import Link from 'next/link';
 import { apiJson } from '@/lib/client-api';
@@ -9,8 +11,8 @@ import { ROSTER_RESPONSE_LABELS, rosterColor } from '@/types/staff-roster';
 import type { RosterResponse, StaffRoster, StaffRosterRow } from '@/types/staff-roster';
 
 type SaveResult = { person:StaffPerson; roster:StaffRoster };
-export default function StaffRosterBoard({ eventId, roster, disabled, filter, onSaved, onBusyChange, onDraftChange, date:controlledDate, onDateChange }: {
-  date?:string;onDateChange?:(date:string)=>void;
+export default function StaffRosterBoard({ eventId, roster, disabled, filter, onSaved, onBusyChange, onDraftChange, date:controlledDate, onDateChange, speakers=[] }: {
+  speakers?:Speaker[];date?:string;onDateChange?:(date:string)=>void;
   eventId?:string; roster:StaffRoster; disabled:boolean; filter:StaffRole|'ALL'; onSaved?:(result:SaveResult)=>Promise<void>; onBusyChange?:(busy:boolean)=>void; onDraftChange?:(row:StaffRosterRow,date:string,response:RosterResponse)=>void;
 }) {
   const dates = attendanceDateKeys(roster.dates);
@@ -21,6 +23,7 @@ export default function StaffRosterBoard({ eventId, roster, disabled, filter, on
   const [message,setMessage] = useState('');
   const visible = roster.rows.filter(row => filter === 'ALL' || row.role === filter);
   async function save(row:StaffRosterRow,response:RosterResponse) {
+    const warning=speakerAttendanceWarning(speakers,row,selectedDate,response);if(warning&&!confirm(warning))return;
     if(onDraftChange){onDraftChange(row,selectedDate,response);return;}
     if(!eventId||!onSaved)return;
     onBusyChange?.(true); setPending(row.member_id); setError(''); setMessage('');

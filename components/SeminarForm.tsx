@@ -246,7 +246,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
         {registration.loading&&<p className="text-sm text-slate-500">出欠・昼食を読み込み中…</p>}
         {registration.error&&<p role="alert" className="text-sm text-red-700">{registration.error}</p>}
         {!registration.loading&&<button type="button" disabled={saving} onClick={registration.reload} className="text-sm text-sky-800 underline">出欠・昼食を再取得</button>}
-        {registration.roster&&<StaffRosterBoard date={roleDate} onDateChange={setRoleDate} eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading||roles.loading} filter="ALL" onDraftChange={(row,date,response)=>{registration.setResponse(row,date,response);if(registration.roster)roles.removeAbsentDayAssignees({...registration.roster,dates:validDates,rows:registration.roster.rows.map(p=>p.member_id===row.member_id?{...p,responses:{...p.responses,[date]:response}}:p)});}}/>}
+        {registration.roster&&<StaffRosterBoard speakers={speakers} date={roleDate} onDateChange={setRoleDate} eventId={initial?.id?String(initial.id):undefined} roster={{...registration.roster,dates:validDates}} disabled={saving||registration.loading||meetings.loading||roles.loading} filter="ALL" onDraftChange={(row,date,response)=>{registration.setResponse(row,date,response);if(registration.roster)roles.removeAbsentDayAssignees({...registration.roster,dates:validDates,rows:registration.roster.rows.map(p=>p.member_id===row.member_id?{...p,responses:{...p.responses,[date]:response}}:p)});}}/>}
       </Section>
 
       <Section title="役割担当">

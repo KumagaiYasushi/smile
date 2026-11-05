@@ -99,7 +99,8 @@ async function login(page, password, email = 'member@example.invalid') {
 for(const [name,viewport] of [['ten-minute-desktop',{width:1280,height:900}],['ten-minute-mobile',{width:390,height:844}]])await harness(name,viewport,async({page,password,step,layout,screenshot})=>{
   await login(page,password);await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
   const date='2027-06-01';let id;
-  async function valid(input,value,expected){await input.fill(value);await expect(input).toHaveAttribute('step','600');assert.equal(await input.evaluate(el=>el.checkValidity()),expected);}
+  async function valid(input,value,expected){const option=input.locator(`option[value="${value}"]`);if(!expected){if(await option.count())await expect(option).toHaveAttribute('disabled','');return;}await input.selectOption(value);assert.equal(await input.evaluate(el=>el.checkValidity()),true);}
+
   await step('ダイアルを表示せず開催・打ち合わせ・懇親会の時刻を10分単位で登録',async()=>{
     await page.goto(`${base}/seminars/new`);await page.getByLabel('セミナー名',{exact:false}).fill('10分単位の入力検証');await page.getByLabel('開催回数',{exact:false}).selectOption('SINGLE');await page.getByLabel('開催日 1',{exact:true}).fill(date);await page.getByLabel(`${date}の開催方法`).selectOption('ONSITE');
     await page.getByLabel(`${date}の時刻を設定`).check();
@@ -116,10 +117,10 @@ for(const [name,viewport] of [['ten-minute-desktop',{width:1280,height:900}],['t
     const event=await (await page.request.get(`${base}/api/seminars/${id}`)).json();assert.equal(event.event_times[date].start,'09:30');assert.equal(event.social_gathering.start_at,`${date}T18:10`);
     const meetings=await (await page.request.get(`${base}/api/seminars/${id}/meetings`)).json();assert.equal(meetings.meetings[0].time,'10:10');
   });
-  await step('タイムスケジュール開始時刻を10分単位で入力し保存する',async()=>{
-    await page.goto(`${base}/seminars/${id}/timetable`);const start=page.getByLabel('スケジュール開始時刻',{exact:true});await expect(start).toHaveValue('09:30');await valid(start,'09:35',false);await valid(start,'09:40',true);
+  await step('タイムスケジュール開始時刻を5分単位で入力し保存する',async()=>{
+    await page.goto(`${base}/seminars/${id}/timetable`);const start=page.getByLabel('スケジュール開始時刻',{exact:true});await expect(start).toHaveValue('09:30');await expect(start).toHaveAttribute('data-minute-step','5');await valid(start,'09:35',true);await valid(start,'09:40',true);
     await page.getByLabel('項目を選択',{exact:true}).selectOption('BREAK');await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
-    const endpoint=`${base}/api/seminars/${id}/timetable`,current=await (await page.request.get(endpoint)).json();assert.equal(current.days[0].start,'09:40');current.days[0].start='09:45';assert.equal((await page.request.put(endpoint,{headers:{Origin:base},data:{version:current.version,days:current.days}})).status(),400);
+    const endpoint=`${base}/api/seminars/${id}/timetable`,current=await (await page.request.get(endpoint)).json();assert.equal(current.days[0].start,'09:40');current.days[0].start='09:42';assert.equal((await page.request.put(endpoint,{headers:{Origin:base},data:{version:current.version,days:current.days}})).status(),400);
     await expect(page.getByRole('button',{name:/ダイアル/})).toHaveCount(0);await layout('タイムスケジュールの開始時刻');
   });
 });

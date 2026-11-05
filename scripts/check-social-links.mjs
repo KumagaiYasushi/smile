@@ -96,7 +96,7 @@ async function login(page, password, email = 'member@example.invalid') {
 }
 
 
-for(const [name,viewport] of [['social-links-desktop',{width:1280,height:900}],['social-links-mobile',{width:390,height:844}]])await harness(name,viewport,async({page,context,password,step,layout,screenshot})=>{
+for(const [name,viewport] of [['social-links-desktop',{width:1280,height:900}],['social-links-mobile',{width:390,height:844}]])await harness(name,viewport,async({page,password,step,layout,screenshot})=>{
   await login(page,password);await expect(page.getByRole('heading',{name:'イベント一覧',exact:true})).toBeVisible();
   const website='https://restaurant.example.invalid/menu?x=1&y=2',map='https://maps.example.invalid/path?q=東京';
   const venue=`架空のお店\n公式：${website}\n地図：(${map})。\njavascript:alert(1)\n<img id="unsafe-venue" src="x">`;
