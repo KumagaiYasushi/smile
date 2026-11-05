@@ -97,3 +97,12 @@ test('lecture choices and saved themes belong to the speaker appearance date',()
     assert.throws(()=>store.save(changed,{version:kept.version,days:[{...day,date:'2027-06-08',items:[lecture]}]},1),{status:400});
   }finally{db.close();}
 });
+
+
+test('practice, classroom lectures and case reviews save independently and calculate their chronological times',()=>{
+  const {db,store}=fixture();try{
+    const types=['PRACTICE_INDIVIDUAL','PRACTICE_PAIR','CLASSROOM_LECTURE','CASE_REVIEW'];
+    const saved=store.save(event,{version:0,days:[{...day,items:types.map((type,i)=>item(`new-${i}`,type,30))}]},1);
+    assert.deepEqual(saved.days[0].items.map(p=>p.type),types);assert.deepEqual(timetableRows(saved.days[0]).map(p=>[p.start,p.end]),[['09:30','10:00'],['10:00','10:30'],['10:30','11:00'],['11:00','11:30']]);assert.deepEqual(store.read(event),saved);
+  }finally{db.close();}
+});
