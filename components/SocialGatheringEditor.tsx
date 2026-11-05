@@ -1,4 +1,5 @@
 'use client';
+import LinkedText from '@/components/LinkedText';
 import TimeSelect from '@/components/TimeSelect';
 import SocialAttendanceFields from '@/components/SocialAttendanceFields';
 import type {SocietyMember} from '@/types/society-member';
@@ -32,7 +33,8 @@ export default function SocialGatheringEditor({value,onChange,members,external,d
           return <div key={part} className="space-y-2"><label className="block text-sm">{part==='start'?'懇親会の開催日':'懇親会の終了日'}<input aria-label={part==='start'?'懇親会の開催日':'懇親会の終了日'} type="date" required={!!time} value={date} onChange={e=>{const next=e.target.value||null;reset({[dateKey]:next,[stampKey]:next&&time?`${next}T${time}`:null,...(part==='start'&&(!(plan.end_date??plan.end_at?.slice(0,10))||(plan.end_date??plan.end_at?.slice(0,10))===date)?{end_date:next,end_at:next&&plan.end_at?`${next}T${plan.end_at.slice(11,16)}`:null}:{} )});}} className={input}/></label><label className="block text-sm">{part==='start'?'開始時刻（10分刻み）':'終了時刻（10分刻み）'}<TimeSelect label={part==='start'?'懇親会の開始時刻':'懇親会の終了時刻'} minutes={10} disabled={!date} minimum={part==='end'&&date===(plan.start_date??plan.start_at?.slice(0,10))?plan.start_at?.slice(11,16):undefined} value={time} onChange={next=>reset({[dateKey]:date||null,[stampKey]:next&&date?`${date}T${next}`:null})}/></label>{!date&&<p className="text-xs text-slate-500">日付を選んでから時刻を設定してください。</p>}</div>;
         })}</div>
         <SocialAttendanceFields planId={plan.id} value={plan.attendees??[]} members={members} external={external} onChange={attendees=>update(plan,{attendees})}/>
-        <label className="block text-sm">懇親会のお店・場所・住所<textarea aria-label="懇親会の場所・住所" rows={2} maxLength={2000} value={plan.venue} onChange={e=>update(plan,{venue:e.target.value})} className={input}/></label>
+        <label className="block text-sm">懇親会のお店・場所・住所・URL<textarea aria-label="懇親会の場所・住所" rows={2} maxLength={2000} value={plan.venue} onChange={e=>update(plan,{venue:e.target.value})} className={input}/></label>
+        <LinkedText text={plan.venue} linksOnly/>
         <div className="grid gap-3 sm:grid-cols-2">{([['participants','懇親会の参加人数（人）'],['fee','懇親会の参加費（1人あたり・円）']] as const).map(([field,text])=><label key={field} className="block min-w-0 text-sm">{text}<input aria-label={text} type="number" min={0} step={1} max={Number.MAX_SAFE_INTEGER} value={plan[field]??''} onChange={e=>update(plan,{[field]:e.target.value===''?null:Number(e.target.value)})} className={input}/></label>)}</div>
         <p className="rounded-lg bg-white p-3 text-sm font-bold">合計金額：{socialTotal(plan)===null?'未定':`¥${BigInt(socialTotal(plan)!).toLocaleString('ja-JP')}`}</p>
         <button type="button" onClick={()=>{if(!confirm('この懇親会の記録を削除対象にしますか？イベントの保存で確定します。'))return;const plans=data.gatherings.filter(p=>p.id!==plan.id),timings=data.timings.filter(t=>plans.some(p=>p.timing===t));onChange(withSocialPlans({...data,status:timings.length?data.status:'NOT_HELD'},timings,plans));}} className="text-sm text-red-700 underline">この懇親会を削除</button>
