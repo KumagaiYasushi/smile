@@ -1,6 +1,7 @@
 'use client';
 import {use,useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
+import TimeSelect from '@/components/TimeSelect';
 import {apiJson} from '@/lib/client-api';
 import {TIMETABLE_TYPES,timetableRows,timeMinutes,clockText,parseTimetable,timetableWindow} from '@/types/timetable';
 import type {TimetableData,TimetableItem,TimetableType} from '@/types/timetable';
@@ -44,7 +45,7 @@ export default function TimetablePage({params}:{params:Promise<{id:string}>}){
     <button type="button" onClick={reload} disabled={busy} className="text-sm text-sky-800 underline">最新の予定を再取得</button>
     {!data&&!error&&<p>読み込み中…</p>}
     {data&&day&&<form onSubmit={save} className="space-y-5" aria-label="タイムスケジュールの編集"><fieldset disabled={busy} className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">対象の日程<select aria-label="対象の日程" value={dayIndex} onChange={e=>{setDayIndex(Number(e.target.value));setSelected([]);setNotice('');}} className={inputClass}>{data.days.map((p,i)=><option key={p.date??'undecided'} value={i}>{p.date??'日程未定'}{p.date&&!data.event_dates.includes(p.date)?'（旧日程）':''}</option>)}</select></label><label className="text-sm">スケジュール開始時刻<input type="time" required value={day.start} onChange={e=>updateDay({start:e.target.value})} className={inputClass}/></label></div>
+      <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">対象の日程<select aria-label="対象の日程" value={dayIndex} onChange={e=>{setDayIndex(Number(e.target.value));setSelected([]);setNotice('');}} className={inputClass}>{data.days.map((p,i)=><option key={p.date??'undecided'} value={i}>{p.date??'日程未定'}{p.date&&!data.event_dates.includes(p.date)?'（旧日程）':''}</option>)}</select></label><label className="text-sm">スケジュール開始時刻<TimeSelect label="スケジュール開始時刻" required value={day.start} onChange={start=>updateDay({start})}/></label></div>
       <section aria-label="基本情報の講演時間" className="space-y-2 rounded-xl border border-sky-200 bg-white p-4"><h2 className="font-bold">基本情報の講演時間</h2><p>{baseTime?`${baseTime.start}〜${baseTime.end??'終了時刻未設定'}${windowInfo?.available!==null?`（${windowInfo?.available}分）`:''}`:'基本情報の開始・終了時刻は未設定です。'}</p><Link href={`/seminars/${id}/edit`} className="text-sm text-sky-800 underline">基本情報の時刻を編集</Link>{baseTime&&<button type="button" onClick={()=>updateDay({start:baseTime.start})} className="ml-3 text-sm text-sky-800 underline">基本情報の開始時刻に合わせる</button>}</section>
       {day.date&&!data.event_dates.includes(day.date)&&<p className="text-sm text-amber-800">開催日変更前のタイムスケジュールです。記録を保持しています。対象の日程から現在の開催日を選んで作成してください。</p>}
       <fieldset className="space-y-3 rounded-xl border bg-white p-4"><legend className="font-bold">追加する項目（複数選択可）</legend>{!data.lectures.length&&<p className="text-sm text-slate-500">イベント編集で演者を登録すると、その演者の講演が選択肢に加わります。</p>}

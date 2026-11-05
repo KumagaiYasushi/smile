@@ -1,17 +1,13 @@
 'use client';
-import {useEffect,useId,useRef,useState} from 'react';
-function Wheel({values,value,label,onChange}:{values:string[];value:string;label:string;onChange:(value:string)=>void}){const ref=useRef<HTMLDivElement>(null),id=useId(),initialIndex=useRef(Math.max(0,values.indexOf(value)));useEffect(()=>{const node=ref.current;if(node)node.scrollTop=initialIndex.current*44;},[]); // Initial positioning; scrolling owns the draft afterwards.
-  function select(index:number){const i=Math.max(0,Math.min(values.length-1,index));onChange(values[i]);ref.current?.scrollTo({top:i*44,behavior:'auto'});}
-  return <div className="min-w-0 flex-1"><p className="mb-2 text-center text-sm font-bold">{label}</p><div className="relative"><div aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-[88px] h-11 rounded-lg border-y-2 border-sky-500 bg-sky-50"/><div ref={ref} role="listbox" aria-label={label} aria-activedescendant={`${id}-${values.indexOf(value)}`} tabIndex={0} onKeyDown={e=>{const current=values.indexOf(value);if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();select(e.key==='Home'?0:e.key==='End'?values.length-1:current+(e.key==='ArrowDown'?1:-1));}}} onScroll={e=>{const i=Math.max(0,Math.min(values.length-1,Math.round(e.currentTarget.scrollTop/44)));if(values[i]!==value)onChange(values[i]);}} className="relative h-[220px] snap-y snap-mandatory overflow-y-auto rounded-lg border py-[88px] [scrollbar-width:none]">{values.map((item,index)=><button id={`${id}-${index}`} key={item} type="button" role="option" aria-selected={item===value} tabIndex={-1} onClick={()=>select(index)} className={`block h-11 w-full snap-center text-center text-2xl ${item===value?'font-bold text-sky-900':'text-slate-500'}`}>{item}</button>)}</div></div></div>;
+import {useEffect,useRef} from 'react';
+import {isTenMinuteTime} from '@/types/time-input';
+function timeError(value:string,minimum?:string){
+  if(!value)return '';
+  if(!isTenMinuteTime(value))return '時刻は10分単位で入力してください。';
+  return minimum&&value<minimum?'開始時刻以降を入力してください。':'';
 }
-export default function TimeSelect({value,onChange,minutes,label,required=false,disabled=false,minimum}:{value:string;onChange:(value:string)=>void;minutes:5|10;label:string;required?:boolean;disabled?:boolean;minimum?:string}){
-  const dialog=useRef<HTMLDialogElement>(null),[hour,setHour]=useState('09'),[minute,setMinute]=useState('00'),[opened,setOpened]=useState(false);
-  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0')),minuteValues=Array.from({length:60/minutes},(_,i)=>String(i*minutes).padStart(2,'0'));
-  const savedMinute=value.slice(3,5);if(savedMinute&&!minuteValues.includes(savedMinute))minuteValues.push(savedMinute);minuteValues.sort();
-  function show(){setHour(value.slice(0,2)||'09');setMinute(value.slice(3,5)||'00');setOpened(true);dialog.current?.showModal();}
-  function close(){dialog.current?.close();setOpened(false);}
-  const picked=`${hour}:${minute}`,invalid=!!minimum&&picked<minimum;
-  return <div className="time-dial space-y-2"><input aria-label={label} type="time" required={required} disabled={disabled} step={savedMinute&&Number(savedMinute)%minutes!==0?60:minutes*60} min={minimum||undefined} value={value} onChange={e=>onChange(e.target.value)} className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"/><button type="button" disabled={disabled} aria-label={`${label}をダイアルで選ぶ`} onClick={show} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800 disabled:opacity-50">ダイアルで選択</button>
-    <dialog ref={dialog} aria-label={`${label}のダイアル`} onCancel={()=>setOpened(false)} onClose={()=>setOpened(false)} className="m-auto w-[calc(100%_-_2rem)] max-w-sm rounded-2xl border border-slate-200 p-5 backdrop:bg-slate-900/40"><h3 className="text-lg font-bold">{label}</h3><p className="mt-1 text-sm text-slate-500">上下に回して選択（{minutes}分刻み）</p>{opened&&<div className="my-4 flex items-center gap-4"><Wheel label="時" values={hours} value={hour} onChange={setHour}/><span aria-hidden="true" className="text-2xl">：</span><Wheel label="分" values={minuteValues} value={minute} onChange={setMinute}/></div>}<p aria-live="polite" className="text-center text-xl font-bold">{picked}</p>{invalid&&<p className="mt-2 text-sm text-red-700">開始時刻以降を選択してください。</p>}<div className="mt-4 flex flex-wrap justify-end gap-3"><button type="button" onClick={close} className="rounded-lg border px-4 py-2">キャンセル</button><button type="button" disabled={invalid} onClick={()=>{onChange(picked);close();}} className="rounded-lg bg-sky-800 px-4 py-2 text-white disabled:opacity-50">この時刻にする</button></div></dialog>
-  </div>;
+export default function TimeSelect({value,onChange,label,required=false,disabled=false,minimum}:{value:string;onChange:(value:string)=>void;label:string;required?:boolean;disabled?:boolean;minimum?:string}){
+  const input=useRef<HTMLInputElement>(null);
+  useEffect(()=>{input.current?.setCustomValidity(timeError(value,minimum));},[value,minimum]);
+  return <input ref={input} aria-label={label} aria-description="10分単位で入力" type="time" required={required} disabled={disabled} step={600} min="00:00" value={value} onChange={e=>{e.currentTarget.setCustomValidity(timeError(e.target.value,minimum));onChange(e.target.value);}} className="mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base sm:text-sm"/>;
 }

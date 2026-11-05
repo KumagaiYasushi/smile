@@ -14,6 +14,6 @@ export function useStableEditorScroll(){
   return {
     onSubmitCapture(){cancel();},
     onChangeCapture(event:FormEvent<HTMLFormElement>){const target=event.target;if(!(target instanceof HTMLElement)||target.closest('dialog'))return;remember();},
-    onClickCapture(event:MouseEvent<HTMLFormElement>){const target=event.target;if(!(target instanceof Element)||target.closest('dialog'))return;const control=target.closest('summary,button');if(!control)return;if(control instanceof HTMLButtonElement&&(control.type==='submit'||control.getAttribute('aria-label')?.includes('ダイアル'))){cancel();return;}remember();},
+    onClickCapture(event:MouseEvent<HTMLFormElement>){const target=event.target;if(!(target instanceof Element)||target.closest('dialog'))return;const control=target.closest('summary,button');if(!control)return;if(control instanceof HTMLButtonElement&&control.type==='submit'){cancel();return;}remember();},
   };
 }

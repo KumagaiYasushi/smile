@@ -1,3 +1,4 @@
+import {isTenMinuteTime} from './time-input.ts';
 import {parseSocialAttendance} from './social-attendance.ts';
 import type {SocialAttendee} from './social-attendance.ts';
 import {requireDate} from './task-template.ts';
@@ -27,6 +28,7 @@ function dateTime(value: unknown): string | null {
   if (typeof value !== 'string' || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}$/.test(value)
     || value.startsWith('0000') || !Number.isFinite(Date.parse(`${value}:00Z`))
     || new Date(`${value}:00Z`).toISOString().slice(0, 16) !== value) throw new TaskError('懇親会の日時が不正です');
+  if(!isTenMinuteTime(value.slice(11,16)))throw new TaskError('懇親会の時刻は10分単位で入力してください');
   return value;
 }
 

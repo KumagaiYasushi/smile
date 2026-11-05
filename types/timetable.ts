@@ -1,3 +1,4 @@
+import {isTenMinuteTime} from './time-input.ts';
 import type {EventTimes} from './event-schedule.ts';
 import {TaskError,parseVersion} from './task.ts';
 import {requireDate} from './task-template.ts';
@@ -21,7 +22,7 @@ export function parseTimetable(value:unknown):Timetable {
   const days=body.days.map(value=>{const day=object(value);
     if(Object.keys(day).some(k=>!['date','start','items'].includes(k)))throw new TaskError('日程の入力形式が不正です');
     const date=day.date===null?null:requireDate(day.date);if(dates.has(date))throw new TaskError('タイムスケジュールの日程が重複しています');dates.add(date);
-    if(typeof day.start!=='string'||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(day.start))throw new TaskError('開始時刻は時分で入力してください');
+    if(!isTenMinuteTime(day.start))throw new TaskError('開始時刻は10分単位で入力してください');
     if(!Array.isArray(day.items)||day.items.length>200)throw new TaskError('各日程の項目は200件以内で入力してください');
     const items=day.items.map(value=>{const p=object(value);count++;
       if(Object.keys(p).some(k=>!['id','type','title','minutes','speaker_key','speaker_name','theme','chairs'].includes(k)))throw new TaskError('タイムスケジュール項目の入力形式が不正です');

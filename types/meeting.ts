@@ -1,3 +1,4 @@
+import {isTenMinuteTime} from './time-input.ts';
 import {TaskError} from './task.ts';
 import {requireDate} from './task-template.ts';
 import type {SocietyMember} from './society-member.ts';
@@ -18,7 +19,7 @@ export function parseMeeting(value:unknown):MeetingInput {
   if(Object.keys(body).some(key=>!['title','date','time','method','attendees'].includes(key)))throw new TaskError('打ち合わせに変更できない項目が含まれています');
   if(typeof body.title!=='string'||!body.title.trim()||body.title.trim().length>200)throw new TaskError('打ち合わせ名は1〜200文字で入力してください');
   const date=body.date===null?null:requireDate(body.date);
-  if(body.time!==null&&(typeof body.time!=='string'||!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(body.time)))throw new TaskError('打ち合わせの時刻が不正です');
+  if(body.time!==null&&!isTenMinuteTime(body.time))throw new TaskError('打ち合わせの時刻は10分単位で入力してください');
   if(body.time&&!date)throw new TaskError('時刻を設定する場合は日付も入力してください');
   if(typeof body.method!=='string'||!Object.hasOwn(MEETING_METHOD_LABELS,body.method))throw new TaskError('打ち合わせの開催方法を選択してください');
   if(!Array.isArray(body.attendees)||body.attendees.length>1000)throw new TaskError('打ち合わせの出欠形式が不正です');

@@ -1,3 +1,4 @@
+import {isTenMinuteTime} from './time-input.ts';
 import { TaskError } from './task.ts';
 import { requireDate } from './task-template.ts';
 
@@ -22,12 +23,12 @@ export function validateOccurrences(type: unknown, dates: string[]) {
 export function parseEventTimes(value: unknown, dates: string[]): EventTimes {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TaskError('開催時刻の入力形式が不正です');
   const result: EventTimes = {};
-  const validTime = (value: unknown): value is string => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+  const validTime = (value: unknown): value is string => isTenMinuteTime(value);
   for (const [date, input] of Object.entries(value)) {
     if (!dates.includes(date) || !input || typeof input !== 'object' || Array.isArray(input)) throw new TaskError('開催時刻は登録済みの開催日ごとに指定してください');
     const time = input as Record<string, unknown>;
     if (Object.keys(time).some(key => !['start', 'end'].includes(key)) || !validTime(time.start)
-      || (time.end !== null && time.end !== undefined && !validTime(time.end))) throw new TaskError('開始・終了時刻は時分で入力してください');
+      || (time.end !== null && time.end !== undefined && !validTime(time.end))) throw new TaskError('開始・終了時刻は10分単位で入力してください');
     const end = time.end == null ? null : time.end as string;
     if (end && end < time.start) throw new TaskError('終了時刻は開始時刻以降にしてください');
     result[date] = { start: time.start, end };

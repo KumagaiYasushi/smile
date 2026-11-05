@@ -605,14 +605,9 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
   await step('任意の時刻を設定・解除', async () => {
     await page.goto(`${base}/seminars/${eventId}/edit`);await expandEventForm();
     await page.getByLabel('2027-06-01の時刻を設定', { exact: true }).check();
-    await page.getByRole('button',{name:'2027-06-01の開始時刻をダイアルで選ぶ',exact:true}).click();
-    const dial=page.getByRole('dialog',{name:'2027-06-01の開始時刻のダイアル',exact:true});
-    const hours=dial.getByRole('listbox',{name:'時',exact:true}),minutes=dial.getByRole('listbox',{name:'分',exact:true});
-    await expect(minutes.getByRole('option',{name:'35',exact:true})).toHaveCount(1);await expect(minutes.getByRole('option',{name:'32',exact:true})).toHaveCount(0);
-    await hours.focus();await hours.press('Home');for(let i=0;i<9;i++)await hours.press('ArrowDown');
-    await minutes.focus();await minutes.press('Home');for(let i=0;i<6;i++)await minutes.press('ArrowDown');
-    await screenshot('time-dial');
-    await dial.getByRole('button',{name:'この時刻にする',exact:true}).click();
+    await expect(page.getByRole('button',{name:/ダイアル/})).toHaveCount(0);
+    await expect(page.getByLabel('2027-06-01の開始時刻',{exact:true})).toHaveAttribute('step','600');
+    await page.getByLabel('2027-06-01の開始時刻',{exact:true}).fill('09:30');
     await expect(page.getByLabel('2027-06-01の開始時刻',{exact:true})).toHaveValue('09:30');
     await page.getByLabel('2027-06-01の終了時刻', { exact: true }).fill('16:30');
     await layout('任意の時刻設定');
