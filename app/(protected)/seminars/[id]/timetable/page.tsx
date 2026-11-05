@@ -6,7 +6,7 @@ import {TIMETABLE_TYPES,timetableRows,timeMinutes,clockText,parseTimetable,timet
 import type {TimetableData,TimetableItem,TimetableType} from '@/types/timetable';
 type DraftItem=Omit<TimetableItem,'minutes'> & {minutes:string};
 type DraftData=Omit<TimetableData,'days'> & {days:{date:string|null;start:string;items:DraftItem[]}[]};
-const toDraft=(data:TimetableData):DraftData=>({...data,days:data.days.map(day=>({...day,items:day.items.map(p=>({...p,minutes:String(p.minutes)}))}))});
+const toDraft=(data:TimetableData):DraftData=>({...data,days:data.days.map(day=>({...day,items:day.items.map(p=>({...p,chairs:p.chairs??[],minutes:String(p.minutes)}))}))});
 const minutesValue=(value:string)=>value.trim()===''?Number.NaN:Number(value);
 const itemColors:Record<TimetableType,string>={OPENING:'bg-sky-50 border-sky-200',GREETING:'bg-indigo-50 border-indigo-200',BREAK:'bg-slate-100 border-slate-300',LUNCH_BREAK:'bg-amber-50 border-amber-200',LECTURE:'bg-emerald-50 border-emerald-200',DISCUSSION:'bg-violet-50 border-violet-200',GROUP_DISCUSSION:'bg-pink-50 border-pink-200',CLOSING:'bg-teal-50 border-teal-200',SPONSOR_CM:'bg-orange-50 border-orange-200'};
 const inputClass='mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2 text-sm';
@@ -28,7 +28,7 @@ export default function TimetablePage({params}:{params:Promise<{id:string}>}){
     const count=chosen.reduce((sum,p)=>sum+Number(quantities[p.key]??'1'),0);
     if(day.items.length+count>200){setError('各日程の項目は200件以内にしてください');return;}
     if(data.days.reduce((sum,p)=>sum+p.items.length,0)+count>1000){setError('項目はイベント全体で1000件以内にしてください');return;}
-    const added=chosen.flatMap(p=>Array.from({length:Number(quantities[p.key]??'1')},()=>({id:crypto.randomUUID(),type:p.type,title:p.label.slice(0,300),minutes:durations[p.key]??String(p.minutes),speaker_key:p.speaker_key,speaker_name:p.speaker_name,theme:p.theme})));
+    const added=chosen.flatMap(p=>Array.from({length:Number(quantities[p.key]??'1')},()=>({id:crypto.randomUUID(),type:p.type,title:p.label.slice(0,300),minutes:durations[p.key]??String(p.minutes),speaker_key:p.speaker_key,speaker_name:p.speaker_name,theme:p.theme,chairs:[]})));
     updateDay({items:[...day.items,...added]});setSelected([]);
   }
   function move(from:number,to:number){if(!day||from===to||to<0||to>=day.items.length)return;const items=[...day.items];items.splice(to,0,items.splice(from,1)[0]);updateDay({items});}
@@ -59,6 +59,11 @@ export default function TimetablePage({params}:{params:Promise<{id:string}>}){
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-sky-900">{row.start}〜{row.end}<span className="ml-2 text-sm">{Number.isFinite(row.minutes)?row.minutes:'—'}分</span></p><span className="text-xs text-slate-500">{TIMETABLE_TYPES[row.type]}</span></div>
         <div className="grid gap-3 sm:grid-cols-[1fr_8rem]"><label className="min-w-0 text-sm">項目名（編集可）<input aria-label="項目名" required maxLength={300} value={row.title} onChange={e=>updateItem(row.id,{title:e.target.value})} className={inputClass}/></label><label className="text-sm">所要時間（分）<input required type="number" min={1} max={1440} step={1} value={day.items[index].minutes} onChange={e=>updateItem(row.id,{minutes:e.target.value})} className={inputClass}/></label></div>
         {row.speaker_key&&<p className="whitespace-pre-wrap break-words text-sm text-slate-600">演者：{row.speaker_name}{row.theme?` ／ テーマ：${row.theme}`:''}</p>}
+        {row.type==='LECTURE'&&<fieldset className="space-y-2 rounded-lg border border-emerald-200 bg-white/80 p-3"><legend className="px-1 text-sm font-medium">この講演の座長（複数選択可）</legend><p className="text-xs text-slate-600">{day.date??'日程未定'}の当日役割に登録した座長から選択します。</p>
+          {!(data.chair_choices[day.date??'']??[]).length&&<p className="text-sm text-slate-600">選択できる座長がいません。当日役割で座長を登録してください。</p>}
+          {[...(data.chair_choices[day.date??'']??[]),...row.chairs.filter(person=>!(data.chair_choices[day.date??'']??[]).some(choice=>choice.member_id===person.member_id))].map(person=>{const chosen=row.chairs.some(p=>p.member_id===person.member_id),available=(data.chair_choices[day.date??'']??[]).some(p=>p.member_id===person.member_id);return <label key={person.member_id} className={`flex items-start gap-2 rounded p-2 text-sm ${available?'':'bg-amber-50 text-amber-900'}`}><input type="checkbox" checked={chosen} onChange={e=>updateItem(row.id,{chairs:e.target.checked?[...row.chairs,person]:row.chairs.filter(p=>p.member_id!==person.member_id)})} className="mt-1"/>{person.name}{!available&&'（当日役割・出欠が変更されています。担当を確認してください）'}</label>;})}
+          <Link href={`/seminars/${id}/roles`} className="inline-block text-sm text-sky-800 underline">当日役割の座長を編集</Link>
+        </fieldset>}
         <div className="flex flex-wrap gap-2"><button type="button" disabled={index===0} onClick={()=>move(index,index-1)} className="rounded border px-3 py-2 text-sm disabled:opacity-40">上へ</button><button type="button" disabled={index===rows.length-1} onClick={()=>move(index,index+1)} className="rounded border px-3 py-2 text-sm disabled:opacity-40">下へ</button><button type="button" onClick={()=>updateDay({items:day.items.filter(p=>p.id!==row.id)})} className="rounded border px-3 py-2 text-sm text-red-700">削除</button></div>
       </li>)}</ol>
       {!rows.length&&<p className="rounded-lg bg-slate-50 p-4 text-sm">項目を選択して追加してください。</p>}
