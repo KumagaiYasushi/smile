@@ -17,9 +17,9 @@ function ChecklistProgress({ seminar }: { seminar: Seminar }) {
         <span>進捗</span>
         <span>{completed}/{total}</span>
       </div>
-      <div className="w-full bg-slate-200 rounded-full h-2">
+      <div className="w-full bg-slate-300 rounded-full h-2">
         <div
-          className={`h-2 rounded-full transition-all ${pct === 100 ? 'bg-green-500' : 'bg-sky-500'}`}
+          className={`h-2 rounded-full transition-all ${pct === 100 ? 'bg-green-700' : 'bg-sky-700'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -55,14 +55,12 @@ export default function HomePage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">イベント一覧</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          {seminars.length === 0 ? 'セミナーはまだ登録されていません' : `全 ${seminars.length} 件`}
-        </p>
+      <div className="mb-6 flex flex-col gap-4 border-b-2 border-slate-300 pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div><h1 className="text-2xl font-bold text-slate-900">イベント一覧</h1><p className="mt-1 text-sm font-medium text-slate-700">{seminars.length===0?'イベントはまだ登録されていません':`全 ${seminars.length} 件`}</p></div>
+        <Link href="/seminars/new" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-orange-800 bg-orange-700 px-5 py-3 text-base font-bold text-white shadow-md transition-colors hover:bg-orange-800 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-orange-700 sm:w-auto"><span aria-hidden="true" className="text-2xl leading-none">＋</span>新規イベントを作成</Link>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 rounded-xl border border-slate-300 bg-slate-100 p-4">
         <label htmlFor="event-type-filter" className="block text-sm font-medium text-slate-700 mb-2">イベント種別で絞り込み</label>
         <select id="event-type-filter" value={eventType} onChange={(e) => setEventType(e.target.value as EventType | 'ALL')} className="w-full sm:w-64 border border-slate-300 rounded-lg bg-white px-3 py-2 text-sm">
           <option value="ALL">すべて</option>
@@ -74,42 +72,38 @@ export default function HomePage() {
       </div>
 
       {seminars.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center">
+        <div className="bg-sky-50 rounded-2xl border-2 border-sky-300 p-6 sm:p-12 text-center">
           <div className="text-5xl mb-4">📋</div>
           <h2 className="text-xl font-bold text-slate-700 mb-2">セミナーを登録しましょう</h2>
-          <p className="text-slate-500 text-sm mb-6">右上の「＋ 新規セミナー」ボタンから登録できます</p>
-          <Link
-            href="/seminars/new"
-            className="inline-block bg-sky-700 text-white px-6 py-3 rounded-lg font-bold hover:bg-sky-600 transition-colors"
-          >
-            ＋ 新規セミナーを作成
-          </Link>
+          <p className="text-slate-500 text-sm mb-6">上の「新規イベントを作成」ボタンから登録できます</p>
         </div>
       ) : filteredSeminars.length === 0 ? (
         <p className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">この種別のイベントはまだ登録されていません</p>
       ) : (
-        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        <div aria-label="登録済みイベント" className="grid min-w-0 grid-cols-1 gap-5 rounded-2xl border border-slate-300 bg-slate-100 p-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {cards.map(({seminar,date}) => (
             <Link
               key={`${seminar.id}-${date??'event'}`}
               href={`/seminars/${seminar.id}`}
-              className="min-w-0 max-w-full bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 [overflow-wrap:anywhere] hover:shadow-md hover:border-sky-300 transition-all block"
+              className="group block min-w-0 max-w-full overflow-hidden rounded-2xl border-2 border-sky-800 bg-sky-100 shadow-md [overflow-wrap:anywhere] transition-shadow hover:shadow-xl focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-orange-700"
             >
-              <span className="inline-block mb-3 text-xs bg-sky-50 text-sky-700 px-2 py-1 rounded-full">{EVENT_TYPE_LABELS[seminar.event_type]}</span>
-              <span className="inline-block mb-3 ml-2 text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
-              <div className="flex items-start justify-between mb-3">
-                <h2 className="font-bold text-slate-800 text-base leading-tight min-w-0 flex-1 mr-2">
-                  {date?eventSessionName(seminar,date):seminar.name}
-                </h2>
+              <div className="bg-sky-900 p-4 sm:p-5">
+              <span className="inline-block mb-3 text-xs bg-white text-sky-900 px-2 py-1 rounded-full">{EVENT_TYPE_LABELS[seminar.event_type]}</span>
+              <span className="inline-block mb-3 ml-2 text-xs bg-sky-800 text-white px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
                 {seminar.dates.length > 0 && (
-                  <span className="text-xs bg-sky-50 text-sky-700 px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0">
+                  <span className="inline-block mb-3 ml-2 text-xs bg-white text-sky-900 px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0">
                     {seminar.dates.length}日程
                   </span>
                 )}
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="font-bold text-white text-lg leading-relaxed min-w-0 flex-1">
+                  {date?eventSessionName(seminar,date):seminar.name}
+                </h2>
               </div>
 
+              </div><div className="p-4 sm:p-5">
               {seminar.dates.length > 0 && (
-                <div className="text-sm text-slate-600 mb-3 space-y-0.5">
+                <div className="text-sm text-slate-800 mb-3 space-y-0.5">
                   {(date?[date]:seminar.dates.slice(0, 2)).map((d, i) => (
                     <div key={i} className="flex min-w-0 items-start gap-1">
                       <span className="text-slate-400">📅</span>
@@ -123,20 +117,20 @@ export default function HomePage() {
               )}
 
               {seminar.lecturer_name && (
-                <div className="min-w-0 text-sm text-slate-600 mb-3 flex items-start gap-1">
+                <div className="min-w-0 text-sm text-slate-800 mb-3 flex items-start gap-1">
                   <span className="text-slate-400">👨‍⚕️</span>
                   <span className="min-w-0 [overflow-wrap:anywhere]">{seminar.lecturer_name}</span>
                 </div>
               )}
 
               {(seminar.dates.length?seminar.dates.some(date=>eventMethodForDate(seminar,date)!=='ONLINE'):seminar.delivery_method!=='ONLINE') && seminar.venue && (
-                <div className="min-w-0 text-sm text-slate-600 mb-3 flex items-start gap-1">
+                <div className="min-w-0 text-sm text-slate-800 mb-3 flex items-start gap-1">
                   <span className="text-slate-400">📍</span>
                   <span className="min-w-0 [overflow-wrap:anywhere]">{seminar.venue}</span>
                 </div>
               )}
 
-              <div className="mt-4 pt-4 border-t border-slate-100">
+              <div className="mt-4 rounded-lg border border-sky-300 bg-white p-3">
                 <ChecklistProgress seminar={seminar} />
               </div>
 
@@ -144,15 +138,16 @@ export default function HomePage() {
                 {CHECKLIST_ITEMS.map((item) => (
                   <span
                     key={item.key}
-                    className={`text-xs px-2 py-0.5 rounded-full ${
+                    className={`text-xs border px-2 py-1 rounded-full ${
                       seminar[item.key]
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-slate-100 text-slate-400'
+                        ? 'border-green-300 bg-green-100 text-green-900'
+                        : 'border-slate-300 bg-white text-slate-700'
                     }`}
                   >
                     {seminar[item.key] ? '✓' : '○'} {item.label}
                   </span>
                 ))}
+              </div>
               </div>
             </Link>
           ))}
