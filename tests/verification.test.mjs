@@ -56,3 +56,11 @@ test('verification setup refuses to adopt an existing unmarked database or start
     assert.equal(start.status, 1);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+test('verification CLI can explicitly create an admin or promote its configured account without resetting data, credentials or MFA',async()=>{
+ const {createAuthStore,totpCode}=await import('../lib/auth.ts');
+ const directory=mkdtempSync(join(tmpdir(),'smile-verification-admin-')),env={...process.env,SMILE_VERIFICATION_DATA_DIR:directory},pw=randomBytes(24).toString('base64url');let db;
+ const run=(role,email='owner@example.invalid')=>execFileSync(process.execPath,[script,'setup',email,`--role=${role}`],{env,input:JSON.stringify({password:pw}),encoding:'utf8',stdio:'pipe'});
+ try{run('member');db=new Database(join(directory,'seminars.db'));const key=JSON.parse(readFileSync(join(directory,'runtime.json'),'utf8')).mfa_key,auth=createAuthStore(db,key),old=await auth.login('owner@example.invalid',pw),before=db.prepare('SELECT password_hash FROM auth_users').get().password_hash;db.exec("UPDATE seminars SET notes='保持する入力' WHERE id=1");
+ run('admin');assert.equal(auth.getUser(old.token),null);assert.equal(db.prepare('SELECT role FROM auth_users').get().role,'admin');assert.equal(db.prepare('SELECT password_hash FROM auth_users').get().password_hash,before);assert.equal(db.prepare('SELECT notes FROM seminars WHERE id=1').get().notes,'保持する入力');const challenge=await auth.login('owner@example.invalid',pw);assert.equal(challenge.stage,'setup');const token=auth.verifyMfa(challenge.token,totpCode(challenge.secret)),mfa=db.prepare('SELECT mfa_secret FROM auth_users').get().mfa_secret;run('admin');assert.equal(auth.getUser(token).role,'admin');assert.equal(db.prepare('SELECT mfa_secret FROM auth_users').get().mfa_secret,mfa);assert.equal(JSON.parse(readFileSync(join(directory,'runtime.json'),'utf8')).mfa_key,key);run('member');assert.equal(auth.getUser(token).role,'admin');run('admin','new-admin@example.invalid');assert.equal((await auth.login('new-admin@example.invalid',pw)).stage,'setup');
+ }finally{db?.close();rmSync(directory,{recursive:true,force:true});}
+});

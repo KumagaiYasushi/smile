@@ -72,3 +72,8 @@ test('startup diagnostics identify every invalid setting without disclosing its 
     assert.equal(readdirSync(directory).length, 0);
   } } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+test('verification role is explicit, defaults to member, and is used only by setup',()=>{
+ assert.equal(hostedVerificationSettings(valid).role,'member');
+ const admin=hostedVerificationSettings({...valid,SMILE_VERIFICATION_ROLE:'admin'});assert.equal(admin.role,'admin');assert.equal(admin.runtime.SMILE_VERIFICATION_ROLE,undefined);
+ assert.throws(()=>hostedVerificationSettings({...valid,SMILE_VERIFICATION_ROLE:'invalid-role-marker'}),/SMILE_VERIFICATION_ROLE/);
+});

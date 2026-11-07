@@ -10,6 +10,8 @@ const directory = resolve(process.env.SMILE_VERIFICATION_DATA_DIR ?? join(projec
 const [action, email] = process.argv.slice(2);
 let db;
 try {
+  const role=(process.argv.slice(2).find(v=>v.startsWith('--role='))??'--role=member').slice(7);
+  if(!['member','admin'].includes(role))throw new Error('検証用アカウントの権限は member または admin を指定してください');
   if (!['setup', 'start'].includes(action) || (action === 'setup' && !email)) throw new Error('使い方: npm run verification:setup -- <メールアドレス> / npm run verification:start');
   if (directory === join(project, 'data')) throw new Error('通常のデータディレクトリは検証用に使用できません');
   if (existsSync(directory) && lstatSync(directory).isSymbolicLink()) throw new Error('検証用ディレクトリにシンボリックリンクは使用できません');
@@ -36,8 +38,9 @@ try {
     db = getDb();
     const auth = createAuthStore(db, key);
     let user = db.prepare('SELECT id,active FROM auth_users WHERE email=?').get(email.trim().toLowerCase());
-    if (!user) user = await auth.createUser(email, await readPassword(), 'member');
+    if (!user) user = await auth.createUser(email, await readPassword(), role);
     else if (!user.active) throw new Error('この検証用アカウントは利用停止されています');
+    if(role==='admin'){const {bootstrapVerificationAdmin}=await import('../lib/verification-account.ts');bootstrapVerificationAdmin(db,user.id);}
     const ids = seedVerification(db, user.id);
     console.log(`検証用環境を準備しました（サンプル${ids.length}件）。既存データとパスワードは上書きしていません。`);
     console.log('次に npm run verification:start を実行し、ログイン後に「検証ページ」を開いてください。');

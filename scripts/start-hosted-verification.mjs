@@ -8,9 +8,9 @@ const project = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 let child, stopping = false, phase = '設定の確認';
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => { stopping = true; child?.kill(signal); });
 try {
-  const { email, password, runtime } = hostedVerificationSettings(process.env);
+  const { email, password, role, runtime } = hostedVerificationSettings(process.env);
   phase = 'サンプルデータの準備';
-  child = spawn(process.execPath, ['scripts/verification.mjs', 'setup', email], { cwd: project,
+  child = spawn(process.execPath, ['scripts/verification.mjs', 'setup', email, `--role=${role}`], { cwd: project,
     env: runtime, stdio: ['pipe', 'inherit', 'inherit'] });
   child.stdin.on('error', () => {});
   child.stdin.end(JSON.stringify({ password }));

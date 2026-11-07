@@ -6,6 +6,8 @@ export class HostedVerificationConfigError extends Error {
 export function hostedVerificationSettings(env: Record<string, string | undefined>) {
   const email = env.SMILE_VERIFICATION_EMAIL?.trim().toLowerCase();
   const password = env.SMILE_VERIFICATION_PASSWORD;
+  const role=env.SMILE_VERIFICATION_ROLE?.trim()||'member';
+  if(role!=='member'&&role!=='admin')throw new HostedVerificationConfigError('SMILE_VERIFICATION_ROLE は member または admin を設定してください');
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HostedVerificationConfigError('SMILE_VERIFICATION_EMAIL にログイン用メールアドレスを設定してください');
   if (!password || password.length < 12 || password.length > 128) throw new HostedVerificationConfigError('SMILE_VERIFICATION_PASSWORD に12〜128文字のパスワードを設定してください');
   const configuredOrigin = env.SMILE_VERIFICATION_ORIGIN?.trim() || env.RENDER_EXTERNAL_URL?.trim();
@@ -20,5 +22,6 @@ export function hostedVerificationSettings(env: Record<string, string | undefine
   // Bootstrap credentials are only sent over the setup child's stdin.
   delete runtime.SMILE_VERIFICATION_PASSWORD;
   delete runtime.SMILE_VERIFICATION_EMAIL;
-  return { email, password, runtime };
+  delete runtime.SMILE_VERIFICATION_ROLE;
+  return { email, password, role, runtime };
 }
