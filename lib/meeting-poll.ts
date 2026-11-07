@@ -23,7 +23,7 @@ export function createMeetingPollStore(db:Database.Database){
       const settings=db.prepare('SELECT title,version FROM meeting_polls WHERE seminar_id=?').get(seminarId) as {title:string;version:number}|undefined;
       const candidates=db.prepare('SELECT id,date,start,end,revision FROM meeting_poll_candidates WHERE seminar_id=? ORDER BY date,start,id').all(seminarId) as PollCandidate[];
       const answers=db.prepare('SELECT a.candidate_id,a.member_id,a.response,a.version FROM meeting_poll_answers a JOIN meeting_poll_candidates c ON c.id=a.candidate_id WHERE c.seminar_id=?').all(seminarId) as PollAnswer[];
-      const decision=db.prepare('SELECT d.candidate_id,d.revision,d.meeting_id,(m.version=d.meeting_version) AS current FROM meeting_poll_decisions d LEFT JOIN event_meetings m ON m.id=d.meeting_id WHERE d.seminar_id=?').get(seminarId) as MeetingPollData['decision'];
+      const decision=db.prepare(`SELECT d.candidate_id,d.revision,d.meeting_id,json_extract(m.input_json,'$.title') AS title,json_extract(m.input_json,'$.method') AS method,(m.version=d.meeting_version) AS current FROM meeting_poll_decisions d LEFT JOIN event_meetings m ON m.id=d.meeting_id WHERE d.seminar_id=?`).get(seminarId) as MeetingPollData['decision'];
       return {...(decision?{decision:{...decision,current:!!decision.current}}:{}),...(settings??{title:'打ち合わせの日程調整',version:0}),candidates,answers,members:directory.list().filter(m=>m.active||answers.some(a=>a.member_id===m.id))};
     })();
   }
