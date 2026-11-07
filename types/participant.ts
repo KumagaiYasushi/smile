@@ -9,6 +9,7 @@ export type Participant = {
   id: number;
   seminar_id: number;
   name: string;
+  receipt_name: string;
   role: ParticipantRole;
   email: string;
   phone: string;
@@ -26,7 +27,7 @@ export type Participant = {
   updated_at: string;
 };
 
-export type ParticipantFields = Pick<Participant, 'name' | 'role' | 'email' | 'phone' | 'payment_status' | 'payment_method' | 'paid_amount' | 'attended' | 'receipt_number' | 'notes'>;
+export type ParticipantFields = Pick<Participant, 'name' | 'receipt_name' | 'role' | 'email' | 'phone' | 'payment_status' | 'payment_method' | 'paid_amount' | 'attended' | 'receipt_number' | 'notes'>;
 export function canIssueReceipt(participant: Pick<Participant, 'payment_method' | 'payment_status' | 'paid_amount' | 'payment_confirmed_at'>) {
   return participant.payment_method === 'bank_transfer' && participant.payment_status === 'paid'
     && typeof participant.payment_confirmed_at === 'string' && participant.payment_confirmed_at.length > 0
@@ -35,11 +36,11 @@ export function canIssueReceipt(participant: Pick<Participant, 'payment_method' 
 export function parseParticipant(value: unknown, current?: ParticipantFields): ParticipantFields {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TaskError('参加者の入力形式が不正です');
   const body = value as Record<string, unknown>;
-  const result: ParticipantFields = { name: '', role: 'other', email: '', phone: '', payment_status: 'unpaid', payment_method: null, paid_amount: null, attended: false, receipt_number: '', notes: '', ...current };
-  if (Object.keys(body).some(key => !['name', 'role', 'email', 'phone', 'payment_status', 'payment_method', 'paid_amount', 'attended', 'receipt_number', 'notes'].includes(key))) throw new TaskError('変更できない参加者の項目が含まれています');
-  for (const key of ['name', 'email', 'phone', 'receipt_number', 'notes'] as const) {
+  const result: ParticipantFields = { name: '', receipt_name: '', role: 'other', email: '', phone: '', payment_status: 'unpaid', payment_method: null, paid_amount: null, attended: false, receipt_number: '', notes: '', ...current };
+  if (Object.keys(body).some(key => !['name', 'receipt_name', 'role', 'email', 'phone', 'payment_status', 'payment_method', 'paid_amount', 'attended', 'receipt_number', 'notes'].includes(key))) throw new TaskError('変更できない参加者の項目が含まれています');
+  for (const key of ['name', 'receipt_name', 'email', 'phone', 'receipt_number', 'notes'] as const) {
     if (!(key in body)) continue;
-    const max = key === 'notes' ? 2000 : key === 'name' ? 200 : key === 'email' ? 254 : 100;
+    const max = key === 'notes' ? 2000 : key === 'name' || key === 'receipt_name' ? 200 : key === 'email' ? 254 : 100;
     if (typeof body[key] !== 'string' || body[key].length > max) throw new TaskError('参加者の文字項目の入力形式または文字数が不正です');
     result[key] = body[key].trim();
   }
@@ -65,7 +66,7 @@ export function parseParticipant(value: unknown, current?: ParticipantFields): P
     result.attended = body.attended;
   }
   if (result.payment_status === 'unpaid') result.paid_amount = null;
-  return Object.fromEntries(['name', 'role', 'email', 'phone', 'payment_status', 'payment_method', 'paid_amount', 'attended', 'receipt_number', 'notes'].map(key => [key, result[key as keyof ParticipantFields]])) as ParticipantFields;
+  return Object.fromEntries(['name', 'receipt_name', 'role', 'email', 'phone', 'payment_status', 'payment_method', 'paid_amount', 'attended', 'receipt_number', 'notes'].map(key => [key, result[key as keyof ParticipantFields]])) as ParticipantFields;
 }
 
 export const ROLE_LABELS: Record<ParticipantRole, string> = {

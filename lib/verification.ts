@@ -44,7 +44,7 @@ export function seedVerification(db: Database.Database, actorId: number): number
         shop_name: '【架空】検証用弁当店', menu: 'サンプル弁当', status: 'PLANNED',
       }, actorId);
       tasks.createTask(event.id, { title: '【検証】会場・昼食の確認', due_date: example.dates[0], assignee_id: actorId, important: true }, actorId);
-      createParticipant({ seminar_id: event.id, name: '【架空】参加者A', role: 'dentist', email: 'participant@example.invalid', phone: '',
+      createParticipant({ receipt_name:'', seminar_id: event.id, name: '【架空】参加者A', role: 'dentist', email: 'participant@example.invalid', phone: '',
         payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null, attended: false, receipt_number: 'TEST-001', notes: '画面確認用の架空データ' });
     }
     db.prepare('INSERT INTO verification_samples(version,event_ids_json) VALUES(1,?)').run(JSON.stringify(ids));

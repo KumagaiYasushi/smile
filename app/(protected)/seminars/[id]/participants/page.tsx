@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, use } from 'react';
 import Link from 'next/link';
+import ParticipantMailPanel from '@/components/ParticipantMailPanel';
 import { apiJson } from '@/lib/client-api';
 import { Seminar } from '@/types/seminar';
 import { Participant, ParticipantFields, ParticipantRole, PaymentMethod, PaymentStatus, ROLE_LABELS, PAYMENT_LABELS, PAYMENT_METHOD_LABELS, canIssueReceipt } from '@/types/participant';
@@ -26,7 +27,7 @@ export default function ParticipantsPage({ params }: Props) {
   const [editTarget, setEditTarget] = useState<Participant | null>(null);
 
   const [form, setForm] = useState<ParticipantFields>({
-    name: '', role: 'dental_hygienist' as ParticipantRole,
+    name: '', receipt_name:'', role: 'dental_hygienist' as ParticipantRole,
     email: '', phone: '', payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null,
     attended: false, receipt_number: '', notes: '',
   });
@@ -50,14 +51,14 @@ export default function ParticipantsPage({ params }: Props) {
   const openAdd = () => {
     setError('');
     setEditTarget(null);
-    setForm({ name: '', role: 'dental_hygienist', email: '', phone: '', payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null, attended: false, receipt_number: '', notes: '' });
+    setForm({ name: '', receipt_name:'', role: 'dental_hygienist', email: '', phone: '', payment_status: 'unpaid', payment_method: 'bank_transfer', paid_amount: null, attended: false, receipt_number: '', notes: '' });
     setShowForm(true);
   };
 
   const openEdit = (p: Participant) => {
     setError('');
     setEditTarget(p);
-    setForm({ name: p.name, role: p.role, email: p.email, phone: p.phone, payment_status: p.payment_status, payment_method: p.payment_method, paid_amount: p.paid_amount, attended: p.attended, receipt_number: p.receipt_number, notes: p.notes });
+    setForm({ name: p.name, receipt_name:p.receipt_name??'', role: p.role, email: p.email, phone: p.phone, payment_status: p.payment_status, payment_method: p.payment_method, paid_amount: p.paid_amount, attended: p.attended, receipt_number: p.receipt_number, notes: p.notes });
     setShowForm(true);
   };
 
@@ -173,7 +174,8 @@ export default function ParticipantsPage({ params }: Props) {
         <StatCard label="入金合計" value={`¥${totalRevenue.toLocaleString()}`} accent="sky" />
       </div>
 
-      <p className="text-sm text-slate-600">未入金ボタンから実際の入金額を確認して保存します。銀行振込の参加者は、その後「領収書を発行」を選べます。入金合計は確認済み金額の合計です。</p>
+      <p className="text-sm text-slate-600">未入金ボタンから実際の入金額を確認して保存します。自動メールを有効にした銀行振込の参加者には、保存後に領収書PDFを自動送信します。未設定の場合は「領収書を発行」を選べます。入金合計は確認済み金額の合計です。</p>
+      <ParticipantMailPanel key={seminar.id} event={seminar} revision={JSON.stringify(participants.map(p=>[p.id,p.name,p.role,p.payment_status,p.paid_amount,p.receipt_name,p.email,p.receipt_issued_at]))}/>
       {/* 職種別内訳 */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
         <h2 className="text-sm font-bold text-slate-700 mb-3">職種別内訳</h2>
@@ -196,7 +198,7 @@ export default function ParticipantsPage({ params }: Props) {
           <div className="divide-y divide-slate-100 md:hidden" aria-label="参加者カード一覧">
             {participants.map((p) => <article key={p.id} className="space-y-3 p-4">
               <div><h3 className="break-words font-bold text-slate-800">{p.name}</h3><p className="text-sm text-slate-500">{ROLE_LABELS[p.role]}</p></div>
-              <div className="space-y-1 break-all text-sm text-slate-600">{p.email && <p>{p.email}</p>}{p.phone && <p>{p.phone}</p>}<p>参加費：¥{getFeeForRole(seminar, p.role).toLocaleString()}</p><p>支払方法：{p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : '未設定'}</p><p>入金額：{p.paid_amount === null ? '未確認' : `¥${p.paid_amount.toLocaleString()}`}</p><p>領収書No.：{p.receipt_number || '—'}</p></div>
+              <div className="space-y-1 break-all text-sm text-slate-600">{p.email && <p>{p.email}</p>}{p.phone && <p>{p.phone}</p>}<p>参加費：¥{getFeeForRole(seminar, p.role).toLocaleString()}</p><p>支払方法：{p.payment_method ? PAYMENT_METHOD_LABELS[p.payment_method] : '未設定'}</p><p>入金額：{p.paid_amount === null ? '未確認' : `¥${p.paid_amount.toLocaleString()}`}</p><p>領収書宛名：{p.receipt_name||p.name}</p><p>領収書No.：{p.receipt_number || '—'}</p></div>
               <div className="flex flex-wrap gap-3">
                 <button disabled={busy || !!p.issued_receipt_id} onClick={() => togglePayment(p)} className={`rounded-full px-3 py-2 text-sm font-bold ${p.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>{paymentLabel(p)}</button>
                 <button disabled={busy} onClick={() => toggleAttended(p)} className={`rounded-full px-3 py-2 text-sm font-bold ${p.attended ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 text-slate-600'}`}>{p.attended ? '出席' : '未確認'}</button>
@@ -342,6 +344,7 @@ export default function ParticipantsPage({ params }: Props) {
                 <input aria-label="確認した入金額（円）" type="number" min="0" step="1" required disabled={!!editTarget?.issued_receipt_id} value={form.paid_amount ?? ''} onChange={e => setForm({ ...form, paid_amount: e.target.value === '' ? null : Number(e.target.value) })} className={input} />
                 <span className="mt-1 block text-xs text-slate-500">実際の入金額を確認して保存してください。銀行振込は保存後に領収書を発行できます。</span>
               </label>}
+              <label className="block text-sm font-medium">領収書宛名<input aria-label="領収書宛名" maxLength={200} readOnly={!!editTarget?.issued_receipt_id} value={form.receipt_name} onChange={e=>setForm({...form,receipt_name:e.target.value})} className="mt-1 block w-full rounded-lg border p-2"/><span className="text-xs text-slate-600">未入力の場合は参加者の氏名を使用します。</span></label>
               {editTarget?.issued_receipt_id && <p className="text-sm text-slate-500">領収書発行済みの入金情報・領収書番号は変更できません。領収書には発行時の情報を保持します。</p>}
               <div>
                 <label htmlFor="participant-email" className="block text-sm font-medium text-slate-700 mb-1">メールアドレス</label>

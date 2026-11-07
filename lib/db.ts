@@ -1,3 +1,4 @@
+import {createParticipantMailStore} from './participant-mail.ts';
 import {resolveSpeakers} from './speakers.ts';
 import {eventSpeakers,speakerPaymentTotal} from '../types/speaker.ts';
 import {resolveSocialAttendance} from './social-attendance.ts';
@@ -127,6 +128,7 @@ function initSchema(db: Database.Database) {
   }).immediate();
   db.transaction(() => {
     const columns = db.prepare('PRAGMA table_info(participants)').all() as { name: string }[];
+    if (!columns.some(column => column.name === 'receipt_name')) db.exec("ALTER TABLE participants ADD COLUMN receipt_name TEXT NOT NULL DEFAULT ''");
     if (!columns.some(column => column.name === 'payment_method')) db.exec("ALTER TABLE participants ADD COLUMN payment_method TEXT CHECK(payment_method IN ('bank_transfer','cash','other'))");
     if (!columns.some(column => column.name === 'paid_amount')) db.exec('ALTER TABLE participants ADD COLUMN paid_amount INTEGER CHECK(paid_amount>=0)');
     if (!columns.some(column => column.name === 'payment_confirmed_at')) db.exec('ALTER TABLE participants ADD COLUMN payment_confirmed_at TEXT');
@@ -362,11 +364,12 @@ export function createParticipant(input: ParticipantInput, actorId: number | nul
     const { seminar_id, ...fields } = input;
     const data = parseParticipant(fields);
     const confirmation = paymentConfirmation(db, data, null, actorId);
-    const result = db.prepare(`INSERT INTO participants(seminar_id,name,role,email,phone,payment_status,payment_method,paid_amount,payment_confirmed_at,payment_confirmed_by,attended,receipt_number,notes)
-      VALUES(@seminar_id,@name,@role,@email,@phone,@payment_status,@payment_method,@paid_amount,@payment_confirmed_at,@payment_confirmed_by,@attended,@receipt_number,@notes)`)
+    const result = db.prepare(`INSERT INTO participants(seminar_id,name,receipt_name,role,email,phone,payment_status,payment_method,paid_amount,payment_confirmed_at,payment_confirmed_by,attended,receipt_number,notes)
+      VALUES(@seminar_id,@name,@receipt_name,@role,@email,@phone,@payment_status,@payment_method,@paid_amount,@payment_confirmed_at,@payment_confirmed_by,@attended,@receipt_number,@notes)`)
       .run({ ...data, ...confirmation, seminar_id, attended: data.attended ? 1 : 0 });
     const created = getParticipantById(Number(result.lastInsertRowid))!;
     paymentHistory(db, created, null, actorId);
+    createParticipantMailStore(db).onParticipant(created,null);
     return created;
   }).immediate();
 }
@@ -377,13 +380,13 @@ export function updateParticipant(id: number, input: Partial<ParticipantFields>,
     const current = getParticipantById(id);
     if (!current) return null;
     const merged = parseParticipant(input, current);
-    if (current.issued_receipt_id && (merged.payment_status !== 'paid' || merged.payment_method !== current.payment_method || merged.paid_amount !== current.paid_amount || merged.receipt_number !== current.receipt_number)) throw new TaskError('領収書発行済みの入金情報・領収書番号は変更できません', 409);
+    if (current.issued_receipt_id && (merged.payment_status !== 'paid' || merged.payment_method !== current.payment_method || merged.paid_amount !== current.paid_amount || merged.receipt_number !== current.receipt_number || merged.receipt_name !== current.receipt_name)) throw new TaskError('領収書発行済みの入金情報・領収書番号は変更できません', 409);
     const confirmation = input.payment_status === 'paid' || current.payment_status !== merged.payment_status || ('paid_amount' in input && merged.paid_amount !== current.paid_amount)
       ? paymentConfirmation(db, merged, current, actorId)
       : { payment_confirmed_at: current.payment_confirmed_at, payment_confirmed_by: current.payment_confirmed_by };
     db.prepare(`
       UPDATE participants SET
-        name = @name, role = @role, email = @email, phone = @phone,
+        name = @name, receipt_name=@receipt_name, role = @role, email = @email, phone = @phone,
         payment_status = @payment_status, attended = @attended,
         receipt_number = @receipt_number, notes = @notes, payment_method=@payment_method, paid_amount=@paid_amount,
         payment_confirmed_at=@payment_confirmed_at,payment_confirmed_by=@payment_confirmed_by
@@ -391,6 +394,7 @@ export function updateParticipant(id: number, input: Partial<ParticipantFields>,
     `).run({ ...merged, ...confirmation, id, attended: merged.attended ? 1 : 0 });
     const updated = getParticipantById(id)!;
     paymentHistory(db, updated, current, actorId);
+    createParticipantMailStore(db).onParticipant(updated,current);
     return updated;
   }).immediate();
 }

@@ -1,3 +1,4 @@
+import {processParticipantMail} from '@/lib/participant-mail-server';
 import { NextRequest } from 'next/server';
 import { getParticipantById, updateParticipant, deleteParticipant } from '@/lib/db';
 import { currentUser, requireMember } from '@/lib/auth-server';
@@ -22,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
     const updated = updateParticipant(participant.id, await request.json(), actor.id);
     if (!updated) throw new TaskError('参加者が見つかりません', 404);
-    return updated;
+    await processParticipantMail(participant.seminar_id);return getParticipantById(participant.id);
   });
 }
 export async function DELETE(request: NextRequest, { params }: Params) {

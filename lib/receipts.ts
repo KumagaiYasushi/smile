@@ -35,7 +35,7 @@ export function createReceiptStore(db: Database.Database) {
       return db.transaction(() => {
         if (!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(actorId)) throw new TaskError('有効な運営メンバーとしてログインしてください', 403);
         const participant = db.prepare('SELECT * FROM participants WHERE seminar_id=? AND id=?').get(seminarId, participantId) as {
-          name: string; role: ParticipantRole; payment_status: 'unpaid' | 'paid'; payment_method: 'bank_transfer' | null;
+          name: string; receipt_name?:string; role: ParticipantRole; payment_status: 'unpaid' | 'paid'; payment_method: 'bank_transfer' | null;
           paid_amount: number | null; payment_confirmed_at: string | null; receipt_number: string;
         } | undefined;
         if (!participant) throw new TaskError('参加者が見つかりません', 404);
@@ -45,7 +45,7 @@ export function createReceiptStore(db: Database.Database) {
         const number = participant.receipt_number || `SMILE-${seminarId}-${participantId}`;
         if (db.prepare('SELECT id FROM participant_receipts WHERE receipt_number=?').get(number)) throw new TaskError('領収書番号が他の参加者と重複しています', 409);
         db.prepare(`INSERT INTO participant_receipts(seminar_id,participant_id,receipt_number,participant_name,participant_role,event_name,event_dates_json,venue,lecturer_name,amount,issue_date,actor_id)
-          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(seminarId, participantId, number, participant.name, participant.role, event.name, event.dates, event.venue, event.lecturer_name, participant.paid_amount, todayInTokyo(), actorId);
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(seminarId, participantId, number, participant.receipt_name?.trim()||participant.name, participant.role, event.name, event.dates, event.venue, event.lecturer_name, participant.paid_amount, todayInTokyo(), actorId);
         db.prepare('UPDATE participants SET receipt_number=? WHERE id=?').run(number, participantId);
         return { receipt: get(seminarId, participantId), reused: false };
       }).immediate();

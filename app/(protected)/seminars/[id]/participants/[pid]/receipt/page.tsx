@@ -79,7 +79,7 @@ export default function ReceiptPage({ params }: Props) {
           <div className="mb-8">
             <div className="flex items-end gap-2 border-b-2 border-slate-900 pb-2">
               <span className="text-2xl font-bold text-slate-900">{receipt.participant_name}</span>
-              <span className="text-lg text-slate-700">様</span>
+              {!/(様|御中)$/.test(receipt.participant_name)&&<span className="text-lg text-slate-700">様</span>}
             </div>
             <div className="text-sm text-slate-500 mt-1">{ROLE_LABELS[receipt.participant_role]}</div>
           </div>

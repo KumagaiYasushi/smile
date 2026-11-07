@@ -1,5 +1,6 @@
+import {processParticipantMail} from '@/lib/participant-mail-server';
 import { NextRequest } from 'next/server';
-import { getParticipantsBySeminar, createParticipant, getSeminarById } from '@/lib/db';
+import { getParticipantsBySeminar, createParticipant, getSeminarById, getParticipantById } from '@/lib/db';
 import { currentUser, requireMember } from '@/lib/auth-server';
 import { participantResponse } from '@/lib/participants-server';
 import { parseParticipant } from '@/types/participant';
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const id = parseId((await params).id);
     if (!getSeminarById(id)) throw new TaskError('イベントが見つかりません', 404);
     const actor = await currentUser(); if (!actor) throw new TaskError('ログインが必要です', 401);
-    return createParticipant({ seminar_id: id, ...parseParticipant(await request.json()) }, actor.id);
+    const created=createParticipant({ seminar_id: id, ...parseParticipant(await request.json()) }, actor.id);
+    await processParticipantMail(id);return getParticipantById(created.id);
   }, 201);
 }
