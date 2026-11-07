@@ -257,6 +257,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
       </Section>
 
       <Section title="打ち合わせ">
+        {!initial?.id&&<p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm font-medium text-sky-950">打ち合わせ日程調整はイベントの登録後に設定してください。</p>}
         {meetings.error&&<p role="alert" className="text-red-700">{meetings.error}</p>}
         {meetings.loading?<p>打ち合わせを読み込み中…</p>:<button type="button" onClick={meetings.reload} disabled={saving} className="text-sm text-sky-800 underline">打ち合わせを再取得</button>}
         <MeetingFields plans={meetings.plans} members={meetings.members} disabled={saving||meetings.loading||!!meetings.error} onAdd={meetings.add} onChange={meetings.update} onRemove={meetings.remove}/>

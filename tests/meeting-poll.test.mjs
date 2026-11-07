@@ -3,7 +3,7 @@ import test from 'node:test';
 import Database from 'better-sqlite3';
 import {createMeetingPollStore} from '../lib/meeting-poll.ts';
 import {createSocietyMemberStore} from '../lib/society-members.ts';
-import {parsePollSettings} from '../types/meeting-poll.ts';
+import {parsePollSettings,summarizePoll} from '../types/meeting-poll.ts';
 function fixture(){const db=new Database(':memory:');db.pragma('foreign_keys=ON');db.exec(`CREATE TABLE seminars(id INTEGER PRIMARY KEY);INSERT INTO seminars VALUES(1),(2);CREATE TABLE auth_users(id INTEGER PRIMARY KEY,active INTEGER);INSERT INTO auth_users VALUES(1,1),(2,1),(3,0)`);const store=createMeetingPollStore(db);return {db,store};}
 const candidate=(date='2027-06-01',start='19:00',end='20:00')=>({date,start,end});
 const settings=(candidates=[candidate()],version=0)=>({title:'運営会議の日程調整',version,candidates});
@@ -16,3 +16,17 @@ test('settings edits preserve answers that arrive since loading, while deleted c
 test('cross-event candidate IDs, inactive users/members and stale directory edits are rejected',()=>{const {db,store}=fixture();try{const a=store.save(1,settings(),1),b=store.save(2,settings(),1);assert.throws(()=>store.save(2,{...edit(b),candidates:edit(a).candidates},1),{status:404});assert.throws(()=>store.answer(2,input(a),1),{status:404});assert.throws(()=>store.answer(1,input(a),3),{status:403});assert.throws(()=>store.save(1,edit(a),3),{status:403});const member=a.members[0],directory=createSocietyMemberStore(db);store.answer(1,input(a),1);directory.save({name:member.name,role:member.role,active:false,version:member.version},1,member.id);assert.throws(()=>store.answer(1,input(a),1),{status:404});assert(store.data(1).members.find(m=>m.id===member.id&&!m.active));const m=a.members[1];directory.save({name:'改名後',role:m.role,active:true,version:m.version},1,m.id);assert.throws(()=>store.answer(1,input(a,1),1),{status:409});assert.equal(store.data(1).members.find(p=>p.id===m.id).name,'改名後');}finally{db.close();}});
 test('strict input validation includes real dates, ten-minute times, ordering, duplicates, counts and forged fields',()=>{for(const candidates of [[candidate('2027-02-30')],[candidate('2027-06-01','19:05')],[candidate('2027-06-01','20:00','19:00')],[candidate('2027-06-01','19:00','19:00')],[candidate(),candidate()],Array.from({length:31},()=>candidate())])assert.throws(()=>parsePollSettings(settings(candidates)),{status:400});assert.throws(()=>parsePollSettings({...settings(),actor_id:1}),{status:400});const {db,store}=fixture();try{const d=store.save(1,settings(),1);for(const patch of [{response:'ATTENDING'},{member_id:0},{version:-1},{revision:'1'},{actor_id:2},{response:undefined}])assert.throws(()=>store.answer(1,{...input(d),...patch},1),{status:400});assert.equal(store.data(1).answers.length,0);}finally{db.close();}});
 test('audit failure rolls back candidate changes, response resets and answer writes together',()=>{const {db,store}=fixture();try{let d=store.save(1,settings(),1);d=store.answer(1,input(d),1);db.exec("CREATE TRIGGER fail_poll_history BEFORE INSERT ON meeting_poll_history BEGIN SELECT RAISE(ABORT,'audit failed');END");const changed=edit(d);changed.candidates[0].date='2027-06-09';assert.throws(()=>store.save(1,changed,1),/audit failed/);assert.deepEqual(store.data(1),d);assert.throws(()=>store.answer(1,input(d,0,0,'NO'),1),/audit failed/);assert.deepEqual(store.data(1),d);}finally{db.close();}});
+
+test('recommendations prioritize confirmed availability, then tentative availability, retaining ties and excluding inactive members',()=>{
+ const {db,store}=fixture();try{
+  let d=store.save(1,settings([candidate(),candidate('2027-06-02'),candidate('2027-06-03')]),1);
+  assert.equal(summarizePoll(d).recommended.length,0);
+  d=store.answer(1,input(d,0,0,'NO'),1);assert.equal(summarizePoll(d).recommended.length,0);
+  d=store.answer(1,input(d,0,1,'MAYBE'),1);assert.deepEqual(summarizePoll(d).recommended.map(s=>s.candidate.id),[d.candidates[1].id]);
+  d=store.answer(1,input(d,0,0,'YES'),1);assert.deepEqual(summarizePoll(d).recommended.map(s=>s.candidate.id),[d.candidates[0].id]);
+  d=store.answer(1,input(d,0,2,'YES'),1);assert.equal(summarizePoll(d).recommended.length,2);
+  d=store.answer(1,input(d,1,2,'MAYBE'),1);assert.deepEqual(summarizePoll(d).recommended.map(s=>s.candidate.id),[d.candidates[2].id]);
+  const summary=summarizePoll(d);assert.equal(summary.recommended[0].unanswered,8);assert.equal(summary.recommended[0].yes,1);assert.equal(summary.recommended[0].maybe,1);
+  d={...d,members:d.members.map((m,i)=>i===1?{...m,active:false}:m)};assert.equal(summarizePoll(d).recommended.length,2);assert.equal(summarizePoll(d).scores[2].unanswered,8);
+ }finally{db.close();}
+});

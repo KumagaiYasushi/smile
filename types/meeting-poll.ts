@@ -30,3 +30,17 @@ export function parsePollSettings(value:unknown):{title:string;version:number;ca
   });
   return {title:b.title.trim(),version:b.version,candidates};
 }
+
+export function summarizePoll(data:MeetingPollData){
+  const active=new Set(data.members.filter(m=>m.active).map(m=>m.id));
+  const scores=data.candidates.map(candidate=>{
+    const answers=data.answers.filter(a=>a.candidate_id===candidate.id&&active.has(a.member_id));
+    const yes=answers.filter(a=>a.response==='YES').length,maybe=answers.filter(a=>a.response==='MAYBE').length,no=answers.filter(a=>a.response==='NO').length;
+    return {candidate,yes,maybe,no,unanswered:active.size-yes-maybe-no};
+  });
+  const eligible=scores.filter(s=>s.yes+s.maybe>0);
+  const maxYes=Math.max(0,...eligible.map(s=>s.yes));
+  const maxMaybe=Math.max(0,...eligible.filter(s=>s.yes===maxYes).map(s=>s.maybe));
+  const recommended=eligible.filter(s=>s.yes===maxYes&&s.maybe===maxMaybe);
+  return {scores,recommended};
+}
