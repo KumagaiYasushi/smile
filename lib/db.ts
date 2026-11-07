@@ -1,3 +1,4 @@
+import {installCalendarQueue} from './calendar-queue.ts';
 import {createParticipantMailStore} from './participant-mail.ts';
 import {resolveSpeakers} from './speakers.ts';
 import {eventSpeakers,speakerPaymentTotal} from '../types/speaker.ts';
@@ -36,6 +37,7 @@ export function getDb(): Database.Database {
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   initSchema(db);
+  installCalendarQueue(db,'seminars');
   return db;
 }
 

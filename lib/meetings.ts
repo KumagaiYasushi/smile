@@ -1,3 +1,4 @@
+import {installCalendarQueue} from './calendar-queue.ts';
 import type Database from 'better-sqlite3';
 import {createSocietyMemberStore} from './society-members.ts';
 import {parseMeeting,normalizeMeetingResponse} from '../types/meeting.ts';
@@ -6,11 +7,12 @@ import {TaskError,parseVersion,parseId} from '../types/task.ts';
 export function createMeetingStore(db:Database.Database) {
   db.exec(`CREATE TABLE IF NOT EXISTS event_meetings(id INTEGER PRIMARY KEY AUTOINCREMENT,seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,input_json TEXT NOT NULL CHECK(json_valid(input_json)),version INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE IF NOT EXISTS event_meeting_history(id INTEGER PRIMARY KEY AUTOINCREMENT,seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,meeting_id INTEGER NOT NULL,actor_id INTEGER NOT NULL,action TEXT NOT NULL,before_json TEXT,after_json TEXT,occurred_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));`);
+  installCalendarQueue(db,'event_meetings');
   const directory=createSocietyMemberStore(db);
   const decode=(row:{id:number;seminar_id:number;input_json:string;version:number}):Meeting=>{const {input_json,...meta}=row;const data=JSON.parse(input_json) as MeetingInput;return {...meta,...data,attendees:data.attendees.map(p=>({...p,response:normalizeMeetingResponse(p.response)}))};};
   function event(id:number){if(!db.prepare('SELECT id FROM seminars WHERE id=?').get(id))throw new TaskError('イベントが見つかりません',404);}
   function list(seminarId:number):Meeting[]{event(seminarId);return (db.prepare('SELECT * FROM event_meetings WHERE seminar_id=? ORDER BY id').all(seminarId) as Parameters<typeof decode>[0][]).map(decode);}
-  function snapshot(value:Meeting|null){return value?JSON.stringify({date:value.date,time:value.time,method:value.method,version:value.version,attendees:value.attendees.map(({member_id,response})=>({member_id,response}))}):null;}
+  function snapshot(value:Meeting|null){return value?JSON.stringify({date:value.date,time:value.time,end_time:value.end_time??null,method:value.method,version:value.version,attendees:value.attendees.map(({member_id,response})=>({member_id,response}))}):null;}
   function input(value:unknown,current?:Meeting):MeetingInput {
     const data=parseMeeting(value),members=directory.list();
     const attendees:MeetingAttendee[]=data.attendees.map(p=>{

@@ -1,3 +1,5 @@
+import {createMeetingStore} from './meetings.ts';
+import {MEETING_METHOD_LABELS} from '../types/meeting.ts';
 import type Database from 'better-sqlite3';
 import {createSocietyMemberStore} from './society-members.ts';
 import {TaskError} from '../types/task.ts';
@@ -5,11 +7,13 @@ import {parsePollSettings,POLL_RESPONSE_LABELS} from '../types/meeting-poll.ts';
 import type {MeetingPollData,PollCandidate,PollAnswer,PollResponse} from '../types/meeting-poll.ts';
 
 export function createMeetingPollStore(db:Database.Database){
+  const meetings=createMeetingStore(db);
   db.exec(`CREATE TABLE IF NOT EXISTS meeting_polls(seminar_id INTEGER PRIMARY KEY REFERENCES seminars(id) ON DELETE CASCADE,title TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE IF NOT EXISTS meeting_poll_candidates(id INTEGER PRIMARY KEY AUTOINCREMENT,seminar_id INTEGER NOT NULL REFERENCES meeting_polls(seminar_id) ON DELETE CASCADE,date TEXT NOT NULL,start TEXT NOT NULL,end TEXT,revision INTEGER NOT NULL DEFAULT 1);
     CREATE INDEX IF NOT EXISTS meeting_poll_candidate_event ON meeting_poll_candidates(seminar_id,date,start,id);
     CREATE TABLE IF NOT EXISTS meeting_poll_answers(candidate_id INTEGER NOT NULL REFERENCES meeting_poll_candidates(id) ON DELETE CASCADE,member_id INTEGER NOT NULL REFERENCES society_members(id),response TEXT CHECK(response IN ('YES','MAYBE','NO')),version INTEGER NOT NULL DEFAULT 1,actor_id INTEGER NOT NULL,updated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')),PRIMARY KEY(candidate_id,member_id));
     CREATE TABLE IF NOT EXISTS meeting_poll_history(id INTEGER PRIMARY KEY AUTOINCREMENT,seminar_id INTEGER NOT NULL REFERENCES seminars(id) ON DELETE CASCADE,actor_id INTEGER NOT NULL,action TEXT NOT NULL,before_json TEXT,after_json TEXT,occurred_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));`);
+  db.exec(`CREATE TABLE IF NOT EXISTS meeting_poll_decisions(seminar_id INTEGER PRIMARY KEY REFERENCES seminars(id) ON DELETE CASCADE,candidate_id INTEGER NOT NULL,revision INTEGER NOT NULL,meeting_id INTEGER REFERENCES event_meetings(id) ON DELETE SET NULL,meeting_version INTEGER NOT NULL)`);
   const directory=createSocietyMemberStore(db);
   function event(id:number){if(!db.prepare('SELECT id FROM seminars WHERE id=?').get(id))throw new TaskError('イベントが見つかりません',404);}
   function actor(id:number){if(!db.prepare('SELECT id FROM auth_users WHERE id=? AND active=1').get(id))throw new TaskError('有効な運営メンバーとしてログインしてください',403);}
@@ -19,7 +23,8 @@ export function createMeetingPollStore(db:Database.Database){
       const settings=db.prepare('SELECT title,version FROM meeting_polls WHERE seminar_id=?').get(seminarId) as {title:string;version:number}|undefined;
       const candidates=db.prepare('SELECT id,date,start,end,revision FROM meeting_poll_candidates WHERE seminar_id=? ORDER BY date,start,id').all(seminarId) as PollCandidate[];
       const answers=db.prepare('SELECT a.candidate_id,a.member_id,a.response,a.version FROM meeting_poll_answers a JOIN meeting_poll_candidates c ON c.id=a.candidate_id WHERE c.seminar_id=?').all(seminarId) as PollAnswer[];
-      return {...(settings??{title:'打ち合わせの日程調整',version:0}),candidates,answers,members:directory.list().filter(m=>m.active||answers.some(a=>a.member_id===m.id))};
+      const decision=db.prepare('SELECT d.candidate_id,d.revision,d.meeting_id,(m.version=d.meeting_version) AS current FROM meeting_poll_decisions d LEFT JOIN event_meetings m ON m.id=d.meeting_id WHERE d.seminar_id=?').get(seminarId) as MeetingPollData['decision'];
+      return {...(decision?{decision:{...decision,current:!!decision.current}}:{}),...(settings??{title:'打ち合わせの日程調整',version:0}),candidates,answers,members:directory.list().filter(m=>m.active||answers.some(a=>a.member_id===m.id))};
     })();
   }
   function history(seminarId:number,actorId:number,action:string,before:unknown,after:unknown){db.prepare('INSERT INTO meeting_poll_history(seminar_id,actor_id,action,before_json,after_json) VALUES(?,?,?,?,?)').run(seminarId,actorId,action,JSON.stringify(before),JSON.stringify(after));}
@@ -62,5 +67,26 @@ export function createMeetingPollStore(db:Database.Database){
       history(seminarId,actorId,'answer',before??null,{candidate_id:b.candidate_id,member_id:b.member_id,response:b.response as PollResponse|null,version:(before?.version??0)+1});return data(seminarId);
     }).immediate();
   }
-  return {data,save,answer};
+  function decide(seminarId:number,value:unknown,actorId:number){
+    return db.transaction(()=>{
+      actor(actorId);const current=data(seminarId);
+      if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('日程決定の入力形式が不正です');
+      const b=value as Record<string,unknown>;
+      if(Object.keys(b).some(k=>!['candidate_id','revision','version','title','method'].includes(k)))throw new TaskError('日程決定に変更できない項目が含まれています');
+      if(typeof b.candidate_id!=='number'||!Number.isSafeInteger(b.candidate_id)||b.candidate_id<1||typeof b.revision!=='number'||!Number.isSafeInteger(b.revision)||b.revision<1||typeof b.version!=='number'||!Number.isSafeInteger(b.version))throw new TaskError('候補日時のIDまたは版が不正です');
+      const c=current.candidates.find(c=>c.id===b.candidate_id);if(!c)throw new TaskError('候補日時が見つかりません',404);
+      if(current.version!==b.version||c.revision!==b.revision)throw new TaskError('候補日時が変更されています。最新の表を取得してください',409);
+      if(typeof b.title!=='string'||!b.title.trim()||b.title.trim().length>200||typeof b.method!=='string'||!Object.hasOwn(MEETING_METHOD_LABELS,b.method))throw new TaskError('打ち合わせ名と開催方法を確認してください');
+      const old=db.prepare('SELECT * FROM meeting_poll_decisions WHERE seminar_id=?').get(seminarId) as {candidate_id:number;revision:number;meeting_id:number|null;meeting_version:number}|undefined;
+      const existing=old?.meeting_id?meetings.list(seminarId).find(m=>m.id===old.meeting_id):undefined;
+      if(existing&&existing.version===old!.meeting_version&&old!.candidate_id===c.id&&old!.revision===c.revision)return {poll:current,meeting:existing,already:true};
+      if(existing&&existing.version!==old!.meeting_version)throw new TaskError('確定した打ち合わせが編集されています。打ち合わせの登録欄で日時を変更してください',409);
+      const input={title:b.title.trim(),date:c.date,time:c.start,end_time:c.end,method:b.method,attendees:directory.list().filter(m=>m.active).map(m=>({member_id:m.id,member_version:m.version,response:null}))};
+      const result=meetings.apply(seminarId,[existing?{action:'update',id:existing.id,version:existing.version,data:input}:{action:'create',data:input}],actorId);
+      const meeting=existing?result.meetings.find(m=>m.id===existing.id)!:result.meetings.at(-1)!;
+      db.prepare(`INSERT INTO meeting_poll_decisions(seminar_id,candidate_id,revision,meeting_id,meeting_version) VALUES(?,?,?,?,?) ON CONFLICT(seminar_id) DO UPDATE SET candidate_id=excluded.candidate_id,revision=excluded.revision,meeting_id=excluded.meeting_id,meeting_version=excluded.meeting_version`).run(seminarId,c.id,c.revision,meeting.id,meeting.version);
+      history(seminarId,actorId,'decided',old??null,{candidate_id:c.id,revision:c.revision,meeting_id:meeting.id});return {poll:data(seminarId),meeting,already:false};
+    }).immediate();
+  }
+  return {data,save,answer,decide};
 }

@@ -30,3 +30,26 @@ test('recommendations prioritize confirmed availability, then tentative availabi
   d={...d,members:d.members.map((m,i)=>i===1?{...m,active:false}:m)};assert.equal(summarizePoll(d).recommended.length,2);assert.equal(summarizePoll(d).scores[2].unanswered,8);
  }finally{db.close();}
 });
+test('tied availability favors lecturer YES responses, excludes lecturer MAYBE and inactive lecturers, and retains true ties',()=>{
+ const candidates=[{id:1,date:'2027-06-01',start:'20:00',end:'22:00',revision:1},{id:2,date:'2027-06-02',start:'20:00',end:'22:00',revision:1}];
+ const members=[{id:1,role:'SOCIETY_LECTURER',active:true},{id:2,role:'SOCIETY_LECTURER',active:true},{id:3,role:'SOCIETY_SUPPORT',active:true},{id:4,role:'SOCIETY_SUPPORT',active:true},{id:5,role:'SOCIETY_LECTURER',active:false}].map(m=>({...m,name:`架空${m.id}`,version:1}));
+ const answer=(candidate_id,member_id,response)=>({candidate_id,member_id,response,version:1});
+ const data={title:'講師優先',version:1,candidates,members,answers:[answer(1,1,'YES'),answer(1,3,'YES'),answer(1,4,'MAYBE'),answer(2,3,'YES'),answer(2,4,'YES'),answer(2,1,'MAYBE'),answer(2,5,'YES')]};
+ assert.deepEqual(summarizePoll(data).recommended.map(s=>s.candidate.id),[1]);
+ assert.equal(summarizePoll(data).scores[1].lecturerYes,0);
+ const tied={...data,answers:[...data.answers.filter(a=>!(a.candidate_id===2&&[1,3].includes(a.member_id))),answer(2,1,'YES'),answer(2,3,'MAYBE')]};
+ assert.equal(summarizePoll(tied).recommended.length,2);
+ const moreTotal={...data,answers:[...data.answers,answer(2,2,'YES')]};assert.deepEqual(summarizePoll(moreTotal).recommended.map(s=>s.candidate.id),[2]);
+ const moreMaybe={...data,answers:[...data.answers,answer(2,2,'MAYBE')]};assert.deepEqual(summarizePoll(moreMaybe).recommended.map(s=>s.candidate.id),[2]);
+});
+test('deciding a candidate creates one confirmed meeting, keeps start/end, preserves availability separately and is idempotent',()=>{
+ const {db,store}=fixture();try{
+ const d=store.save(1,settings([candidate(),candidate('2027-06-02')]),1),make=c=>({candidate_id:c.id,revision:c.revision,version:d.version,title:'確定会議',method:'ONLINE'});
+ const first=store.decide(1,make(d.candidates[0]),1);assert.equal(first.meeting.date,'2027-06-01');assert.equal(first.meeting.time,'19:00');assert.equal(first.meeting.end_time,'20:00');assert(first.meeting.attendees.every(a=>a.response===null));assert.equal(first.poll.decision.current,true);
+ const again=store.decide(1,make(d.candidates[0]),2);assert.equal(again.already,true);assert.equal(again.meeting.id,first.meeting.id);assert.equal(db.prepare('SELECT count(*) n FROM event_meetings').get().n,1);
+ const second=store.decide(1,make(d.candidates[1]),2);assert.equal(second.meeting.id,first.meeting.id);assert.equal(second.meeting.date,'2027-06-02');assert.equal(second.meeting.version,2);assert.equal(second.poll.decision.candidate_id,d.candidates[1].id);
+ assert.throws(()=>store.decide(2,make(d.candidates[0]),1),{status:404});assert.throws(()=>store.decide(1,{...make(d.candidates[0]),revision:99},1),{status:409});
+ db.prepare('UPDATE event_meetings SET version=version+1 WHERE id=?').run(first.meeting.id);assert.equal(store.data(1).decision.current,false);assert.throws(()=>store.decide(1,make(d.candidates[0]),1),{status:409});
+ }finally{db.close();}
+});
+test('decision audit failures roll back meeting creation and can be retried without duplication',()=>{const {db,store}=fixture();try{const d=store.save(1,settings(),1),c=d.candidates[0],input={candidate_id:c.id,revision:c.revision,version:d.version,title:'会議',method:'ONLINE'};db.exec("CREATE TRIGGER fail_decision BEFORE INSERT ON meeting_poll_history WHEN NEW.action='decided' BEGIN SELECT RAISE(ABORT,'decision audit failed');END");assert.throws(()=>store.decide(1,input,1),/decision audit failed/);assert.equal(db.prepare('SELECT count(*) n FROM event_meetings').get().n,0);assert.equal(store.data(1).decision,undefined);db.exec('DROP TRIGGER fail_decision');assert.equal(store.decide(1,input,1).meeting.version,1);}finally{db.close();}});

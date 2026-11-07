@@ -1,3 +1,4 @@
+import {scheduleCalendarSync} from '@/lib/calendar-server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllSeminars, createSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       receipt_issued: Boolean(body.receipt_issued),
       notes: body.notes ?? '',
     },actor.id);standard.initialize(event.id,actor.id);return event;},body.registration,actor.id);
+    scheduleCalendarSync();
     return NextResponse.json(seminar, { status: 201 });
   } catch (error) {
     if (error instanceof TaskError) return NextResponse.json({ error: error.message }, { status: error.status });

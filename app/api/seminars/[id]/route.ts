@@ -1,3 +1,4 @@
+import {scheduleCalendarSync} from '@/lib/calendar-server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSeminarById, updateSeminar, deleteSeminar, getDb } from '@/lib/db';
 import { isEventType, isDeliveryMethod } from '@/types/seminar';
@@ -43,6 +44,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return event;
     },registration,actor.id);
     if (!updated) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
+    scheduleCalendarSync();
     return NextResponse.json(updated);
   } catch (error) {
     if (error instanceof TaskError) return NextResponse.json({ error: error.message }, { status: error.status });
@@ -58,5 +60,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const deleted = deleteSeminar(Number(id));
   if (!deleted) return NextResponse.json({ error: '見つかりません' }, { status: 404 });
+  scheduleCalendarSync();
   return NextResponse.json({ success: true });
 }

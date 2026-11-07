@@ -7,7 +7,7 @@ export type PollResponse=keyof typeof POLL_RESPONSE_LABELS;
 export type PollCandidateInput={id?:number;date:string;start:string;end:string|null};
 export type PollCandidate=Required<PollCandidateInput>&{revision:number};
 export type PollAnswer={candidate_id:number;member_id:number;response:PollResponse|null;version:number};
-export type MeetingPollData={title:string;version:number;candidates:PollCandidate[];members:SocietyMember[];answers:PollAnswer[]};
+export type MeetingPollData={decision?:{candidate_id:number;revision:number;meeting_id:number|null;current:boolean};title:string;version:number;candidates:PollCandidate[];members:SocietyMember[];answers:PollAnswer[]};
 export function parsePollSettings(value:unknown):{title:string;version:number;candidates:PollCandidateInput[]}{
   if(!value||typeof value!=='object'||Array.isArray(value))throw new TaskError('候補日時の入力形式が不正です');
   const b=value as Record<string,unknown>;
@@ -33,14 +33,18 @@ export function parsePollSettings(value:unknown):{title:string;version:number;ca
 
 export function summarizePoll(data:MeetingPollData){
   const active=new Set(data.members.filter(m=>m.active).map(m=>m.id));
+  const lecturers=new Set(data.members.filter(m=>m.active&&m.role==='SOCIETY_LECTURER').map(m=>m.id));
   const scores=data.candidates.map(candidate=>{
     const answers=data.answers.filter(a=>a.candidate_id===candidate.id&&active.has(a.member_id));
     const yes=answers.filter(a=>a.response==='YES').length,maybe=answers.filter(a=>a.response==='MAYBE').length,no=answers.filter(a=>a.response==='NO').length;
-    return {candidate,yes,maybe,no,unanswered:active.size-yes-maybe-no};
+    const lecturerYes=answers.filter(a=>a.response==='YES'&&lecturers.has(a.member_id)).length;
+    return {candidate,yes,maybe,no,lecturerYes,unanswered:active.size-yes-maybe-no};
   });
   const eligible=scores.filter(s=>s.yes+s.maybe>0);
   const maxYes=Math.max(0,...eligible.map(s=>s.yes));
   const maxMaybe=Math.max(0,...eligible.filter(s=>s.yes===maxYes).map(s=>s.maybe));
-  const recommended=eligible.filter(s=>s.yes===maxYes&&s.maybe===maxMaybe);
+  const tied=eligible.filter(s=>s.yes===maxYes&&s.maybe===maxMaybe);
+  const maxLecturerYes=Math.max(0,...tied.map(s=>s.lecturerYes));
+  const recommended=tied.filter(s=>s.lecturerYes===maxLecturerYes);
   return {scores,recommended};
 }
