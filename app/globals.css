@@ -82,3 +82,31 @@ form[data-stable-editor] {
   .app-workspace-content :where(.text-slate-600,.text-gray-600) { color: #334155; }
   .app-workspace-content :where(input,textarea)::placeholder { color: #64748b; opacity: 1; }
 }
+
+/* Event creation/editing: separate writable controls from the section surface.
+   Keep invalid states red and never alter control geometry on focus. */
+form[data-event-editor] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),select,textarea) {
+  border-width: 2px;
+  border-style: solid;
+}
+form[data-event-editor] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="button"]):not([type="submit"]),select,textarea):where(:not([aria-invalid="true"]):not(:user-invalid)) {
+  background-color: #ffffff;
+  border-color: #71879b;
+  color: #0f172a;
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 6%);
+}
+form[data-event-editor] :where(input,textarea)::placeholder {
+  color: #526475;
+  opacity: 1;
+}
+form[data-event-editor] :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea):focus-visible:where(:not([aria-invalid="true"]):not(:user-invalid)) {
+  border-color: #0369a1;
+  outline: 3px solid rgb(2 132 199 / 28%);
+  outline-offset: 2px;
+}
+form[data-event-editor] :where(input,select,textarea):disabled,
+form[data-event-editor] :where(input,textarea)[readonly] {
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
+  color: #475569;
+}

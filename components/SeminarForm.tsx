@@ -154,7 +154,7 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   return (
-    <form ref={formRef} data-stable-editor {...stableScroll} noValidate onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} data-stable-editor data-event-editor {...stableScroll} noValidate onSubmit={handleSubmit} className="space-y-4">
       {error && (
         <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
           {error}
@@ -378,9 +378,9 @@ export default function SeminarForm({ initial, onSubmit, submitLabel }: Props) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <details data-form-section={title} open={title==='基本情報'} className="scroll-mt-36 rounded-xl border border-slate-200 bg-white p-4">
-      <summary className="cursor-pointer select-none text-slate-700"><h2 className="inline text-base font-bold">{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
-      <div className="mt-4 space-y-4">{children}</div>
+    <details data-form-section={title} open={title==='基本情報'} className="scroll-mt-36 rounded-xl border border-slate-400 bg-sky-50 p-4">
+      <summary className="cursor-pointer select-none text-sky-950"><h2 className="inline text-base font-bold">{title==='演者・テーマ'?'演者登録（複数名登録可）':title}</h2><span className="ml-3 text-xs text-slate-500">開く・閉じる</span></summary>
+      <div className="mt-4 space-y-4 border-t border-slate-300 pt-4">{children}</div>
     </details>
   );
 }
