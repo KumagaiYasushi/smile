@@ -10,10 +10,12 @@ import type {BankAccount,ParticipantMailSettings} from '@/types/participant-mail
 type Job={id:number;name:string;kind:'APPLICATION'|'PAYMENT';phase:keyof typeof PARTICIPANT_MAIL_LABELS;sent_at:string|null;last_error:string};
 type Data={settings:ParticipantMailSettings;version:number;owner_id:number|null;actor_id:number;sender_email:string;form_connected:boolean;banks:BankAccount[];banks_version:number;gmail:{configured:boolean;connected:boolean;email:string|null};jobs:Job[]};
 const field='mt-1 block w-full min-w-0 rounded-lg border border-slate-300 bg-white p-2 text-base text-slate-900 sm:text-sm';
-export default function ParticipantMailPanel({event,revision}:{event:Seminar;revision:string}){
+export default function ParticipantMailPanel({event,revision,onDirtyChange,onBusyChange}:{event:Seminar;revision:string;onDirtyChange?:(dirty:boolean)=>void;onBusyChange?:(busy:boolean)=>void}){
   const endpoint=`/api/seminars/${event.id}/participant-mail`,[data,setData]=useState<Data|null>(null),[draft,setDraft]=useState<ParticipantMailSettings|null>(null),[banks,setBanks]=useState<BankAccount[]|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[script,setScript]=useState(''),[busy,setBusy]=useState(false),[dirty,setDirty]=useState(false),[role,setRole]=useState<ParticipantRole>('dental_hygienist');
   const load=useCallback(async(reset=false)=>{const result:Data=await apiJson(endpoint);setData(result);setDraft(current=>reset?result.settings:current??result.settings);setBanks(current=>reset?result.banks:current??result.banks);},[endpoint]);
   useEffect(()=>{const c=new AbortController();apiJson(endpoint,{signal:c.signal}).then((result:Data)=>{if(c.signal.aborted)return;setData(result);setDraft(current=>current??result.settings);setBanks(current=>current??result.banks);}).catch(e=>{if(!c.signal.aborted)setError(e.message);});return()=>c.abort();},[endpoint,revision]);
+  useEffect(()=>{onDirtyChange?.(dirty||!!script);},[dirty,script,onDirtyChange]);
+  useEffect(()=>{onBusyChange?.(busy);},[busy,onBusyChange]);
   const pending=!!data?.jobs.some(job=>['QUEUED','SENDING','UNKNOWN'].includes(job.phase));
   useEffect(()=>{if(!pending||!data?.settings.enabled)return;const timer=setInterval(()=>{if(document.visibilityState==='visible')void apiJson(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dispatch'})}).then(()=>load()).catch(e=>setError(e.message));},60000);return()=>clearInterval(timer);},[pending,data?.settings.enabled,endpoint,load]);
   const editable=!data?.owner_id||data.owner_id===data.actor_id;
