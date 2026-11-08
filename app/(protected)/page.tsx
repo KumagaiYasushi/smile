@@ -1,4 +1,6 @@
 'use client';
+import {EVENT_COLORS} from '@/types/event-colors';
+import EventTypeLegend from '@/components/EventTypeLegend';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -60,6 +62,7 @@ export default function HomePage() {
         <Link href="/seminars/new" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-orange-800 bg-orange-700 px-5 py-3 text-base font-bold text-white shadow-md transition-colors hover:bg-orange-800 focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-orange-700 sm:w-auto"><span aria-hidden="true" className="text-2xl leading-none">＋</span>新規イベントを作成</Link>
       </div>
 
+      <div className="mb-4"><EventTypeLegend/></div>
       <div className="mb-6 rounded-xl border border-slate-300 bg-slate-100 p-4">
         <label htmlFor="event-type-filter" className="block text-sm font-medium text-slate-700 mb-2">イベント種別で絞り込み</label>
         <select id="event-type-filter" value={eventType} onChange={(e) => setEventType(e.target.value as EventType | 'ALL')} className="w-full sm:w-64 border border-slate-300 rounded-lg bg-white px-3 py-2 text-sm">
@@ -85,11 +88,11 @@ export default function HomePage() {
             <Link
               key={`${seminar.id}-${date??'event'}`}
               href={`/seminars/${seminar.id}`}
-              className="group block min-w-0 max-w-full overflow-hidden rounded-2xl border-2 border-sky-800 bg-sky-100 shadow-md [overflow-wrap:anywhere] transition-shadow hover:shadow-xl focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-orange-700"
+              data-event-type={seminar.event_type} className={`group block min-w-0 max-w-full overflow-hidden rounded-2xl border-2 shadow-md [overflow-wrap:anywhere] transition-shadow hover:shadow-xl focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-orange-700 ${EVENT_COLORS[seminar.event_type].card}`}
             >
-              <div className="bg-sky-900 p-4 sm:p-5">
-              <span className="inline-block mb-3 text-xs bg-white text-sky-900 px-2 py-1 rounded-full">{EVENT_TYPE_LABELS[seminar.event_type]}</span>
-              <span className="inline-block mb-3 ml-2 text-xs bg-sky-800 text-white px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
+              <div className={`p-4 sm:p-5 ${EVENT_COLORS[seminar.event_type].header}`}>
+              <span className={`inline-block mb-3 border text-xs px-2 py-1 rounded-full font-bold ${EVENT_COLORS[seminar.event_type].badge}`}>{EVENT_TYPE_LABELS[seminar.event_type]}</span>
+              <span className="inline-block mb-3 ml-2 text-xs bg-white/15 text-white px-2 py-1 rounded-full">開催方法：{eventDeliveryLabel(seminar)}</span>
                 {seminar.dates.length > 0 && (
                   <span className="inline-block mb-3 ml-2 text-xs bg-white text-sky-900 px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0">
                     {seminar.dates.length}日程

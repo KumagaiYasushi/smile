@@ -1,4 +1,6 @@
 'use client';
+import {EVENT_COLORS} from '@/types/event-colors';
+import EventTypeLegend from '@/components/EventTypeLegend';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -62,8 +64,8 @@ export default function DashboardPage() {
     </div>
     {!loading && data?.total === 0 && <p className="rounded-xl border bg-white p-8 text-center text-slate-500">{filter === 'ALL' ? '未完了のタスクはありません' : '条件に一致する未完了タスクはありません'}</p>}
     {!loading && data && <>
-      <div className="grid items-start gap-4 lg:grid-cols-2">{data.items.map((task) => <article key={task.id} className={`min-w-0 rounded-xl border bg-white p-5 space-y-3 ${task.overdue ? 'border-red-200' : 'border-slate-200'}`}>
-        <div className="flex flex-wrap gap-2 text-xs">
+      <EventTypeLegend/><div className="grid items-start gap-4 lg:grid-cols-2">{data.items.map((task) => <article key={task.id} data-event-type={task.event_type} className={`min-w-0 rounded-xl border-2 p-5 space-y-3 ${EVENT_COLORS[task.event_type].card}`}>
+        <div className="flex flex-wrap gap-2 text-xs"><span className={`rounded-full border px-2 py-1 font-bold ${EVENT_COLORS[task.event_type].badge}`}>{EVENT_TYPE_LABELS[task.event_type]}</span>
           <span className="rounded-full bg-slate-100 px-2 py-1">{TASK_STATUS_LABELS[task.status]}</span>
           {task.overdue && <span className="rounded-full bg-red-100 px-2 py-1 text-red-800">期限超過</span>}
           {task.important && <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">重要</span>}

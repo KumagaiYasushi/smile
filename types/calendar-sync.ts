@@ -1,7 +1,8 @@
+import {EVENT_COLORS} from './event-colors.ts';
 import type {Seminar} from './seminar.ts';
 import type {Meeting} from './meeting.ts';
 import {normalizeSocialGathering} from './social-gathering.ts';
-export type GoogleScheduleEvent={summary:string;location:string;description:string;start:{date?:string;dateTime?:string;timeZone?:string};end:{date?:string;dateTime?:string;timeZone?:string}};
+export type GoogleScheduleEvent={colorId?:string;summary:string;location:string;description:string;start:{date?:string;dateTime?:string;timeZone?:string};end:{date?:string;dateTime?:string;timeZone?:string}};
 export type CalendarDesired={key:string;payload:GoogleScheduleEvent};
 export function nextDate(date:string){const d=new Date(`${date}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10);}
 function timed(start:string,end:string|null){
@@ -20,5 +21,5 @@ export function calendarEvents(event:Seminar,meetings:Meeting[],origin:string):C
     const date=g.start_at?.slice(0,10)??g.start_date;if(!date)continue;
     result.push({key:`social:${g.id}`,payload:{summary:`【懇親会】${event.name}`,location:g.venue,description,...(g.start_at?timed(g.start_at,g.end_at):{start:{date},end:{date:nextDate(g.end_date&&g.end_date>=date?g.end_date:date)}})}});
   }
-  return result;
+  return result.map(item=>({...item,payload:{...item.payload,colorId:EVENT_COLORS[event.event_type]?.google}}));
 }

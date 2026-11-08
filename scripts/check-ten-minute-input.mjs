@@ -119,7 +119,7 @@ for(const [name,viewport] of [['ten-minute-desktop',{width:1280,height:900}],['t
   });
   await step('タイムスケジュール開始時刻を5分単位で入力し保存する',async()=>{
     await page.goto(`${base}/seminars/${id}/timetable`);const start=page.getByLabel('スケジュール開始時刻',{exact:true});await expect(start).toHaveValue('09:30');await expect(start).toHaveAttribute('data-minute-step','5');await valid(start,'09:35',true);await valid(start,'09:40',true);
-    await page.getByLabel('項目を選択',{exact:true}).selectOption('BREAK');await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
+    await page.getByLabel('項目を選択',{exact:true}).selectOption('BREAK');await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
     const endpoint=`${base}/api/seminars/${id}/timetable`,current=await (await page.request.get(endpoint)).json();assert.equal(current.days[0].start,'09:40');current.days[0].start='09:42';assert.equal((await page.request.put(endpoint,{headers:{Origin:base},data:{version:current.version,days:current.days}})).status(),400);
     await expect(page.getByRole('button',{name:/ダイアル/})).toHaveCount(0);await layout('タイムスケジュールの開始時刻');
   });

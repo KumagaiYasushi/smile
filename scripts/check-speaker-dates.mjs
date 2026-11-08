@@ -142,7 +142,7 @@ for(const [name,viewport] of [['speaker-dates-desktop',{width:1280,height:900}],
     for(let i=0;i<2;i++){
       await page.getByLabel('対象の日程',{exact:true}).selectOption(String(i));const chooser=page.getByLabel('項目を選択',{exact:true});
       const options=await chooser.locator('optgroup[label="登録演者の講演"] option').allTextContents();assert.equal(options.length,2);assert.ok(options.every(p=>p.includes(i===0?'第1回':'第2回')));
-      await chooser.selectOption({label:options[0]});await page.getByRole('button',{name:'選択した項目を追加',exact:true}).click();await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toContainText(i===0?'第1回':'第2回');
+      await chooser.selectOption({label:options[0]});await expect(page.getByRole('listitem',{name:'予定 1',exact:true})).toContainText(i===0?'第1回':'第2回');
     }
     await page.getByRole('button',{name:'タイムスケジュールを保存',exact:true}).click();await expect(page.getByRole('status')).toContainText('保存しました');
     const timetable=await (await page.request.get(`${base}/api/seminars/${eventId}/timetable`)).json();assert.notEqual(timetable.days[0].items[0].speaker_key,timetable.days[1].items[0].speaker_key);
