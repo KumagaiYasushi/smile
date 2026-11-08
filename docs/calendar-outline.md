@@ -4,14 +4,14 @@
 
 ## 研究会カレンダー
 
-HOMEとタスクダッシュボードに、指定された歯周基本治療研究会のGoogleカレンダーを埋め込む。
+タスクダッシュボードに、指定された歯周基本治療研究会のGoogleカレンダーを埋め込む。HOMEは新規イベント登録・イベント一覧・システム設定の構成とし、カレンダーは表示しない。
 月表示・予定一覧を切り替えられ、日本語・日本時間（Asia/Tokyo）で表示する。「カレンダーを再表示」で表示を読み込み直す。
 「Googleカレンダーを開く」と利用者指定のiCal URLも用意する。カレンダーはGoogleの表示を利用し、アプリのイベントや出欠とは別に表示する。
 
 指定の公開カレンダーIDは `ll3g7e3vbkom98qssfokalpl58@group.calendar.google.com`。
 iCal URL: https://calendar.google.com/calendar/ical/ll3g7e3vbkom98qssfokalpl58%40group.calendar.google.com/public/basic.ics
 
-埋め込みURLは固定のカレンダーIDから作成する。サーバーがiCalのURLを取得する処理や、APIキー・パスワードの設定は不要。ログイン済みの運営メンバーがHOME・ダッシュボードから閲覧する。
+埋め込みURLは固定のカレンダーIDから作成する。サーバーがiCalのURLを取得する処理や、APIキー・パスワードの設定は不要。ログイン済みの運営メンバーがダッシュボードから閲覧する。
 
 ## 開催要項PDF
 

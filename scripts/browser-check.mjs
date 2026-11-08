@@ -174,8 +174,8 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByRole('article')).toHaveCount(1);
     await layout('会場台帳'); await screenshot('venues');
   });
-  await step('HOMEとダッシュボードの研究会カレンダー表示切替',async()=>{
-    for(const path of ['/home','/dashboard']){
+  await step('ダッシュボードの研究会カレンダー表示切替',async()=>{
+    for(const path of ['/dashboard']){
       await page.goto(`${base}${path}`);
       const calendar=page.getByRole('region',{name:'歯周基本治療研究会カレンダー',exact:true});
       await expect(calendar).toBeVisible();
@@ -302,13 +302,11 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await layout('イベントメニューと一括依頼');await screenshot('event-menu-mail');
 
     await openSystemMenu();await page.getByRole('link',{name:'HOME',exact:true}).click();
-    const filters=page.getByRole('group',{name:'HOMEの種別で絞り込み',exact:true}),rows=page.getByRole('list',{name:'HOMEの日程一覧',exact:true}).getByRole('listitem');
-    await expect(rows).toHaveCount(4);await expect(rows.first()).toContainText('2027-11-01');
-    for(const name of ['ベーシックコース','講演会','セミナー','打ち合わせ','その他'])await expect(filters.getByRole('button',{name,exact:true})).toBeVisible();
-    await filters.getByRole('button',{name:'その他',exact:true}).click();await expect(rows).toHaveCount(1);await expect(rows.first()).toContainText('2027-12-01');
-    await filters.getByRole('button',{name:'打ち合わせ',exact:true}).click();await expect(rows).toHaveCount(3);
-    await layout('HOMEの日程一覧');await screenshot('home');
-    await rows.first().getByRole('link',{name:'UI検証・打ち合わせ付きその他',exact:true}).click();
+    const rows=page.locator('a[data-entry-kind]');
+    await expect(rows).toHaveCount(4);await expect(rows.first()).toContainText('2027/11/01');
+    await page.getByLabel('イベント種別で絞り込み',{exact:true}).selectOption('OTHER');await expect(rows).toHaveCount(4);
+    await page.getByLabel('予定の種類',{exact:true}).selectOption('MEETING');await expect(rows).toHaveCount(3);
+    await layout('HOMEのイベント一覧');await screenshot('home');await rows.first().click();
     await expect(page.getByRole('heading',{name:'打ち合わせ',exact:true})).toBeVisible();
     await expect(first.getByLabel('打ち合わせ日',{exact:true})).toHaveValue('2027-11-01');
     await first.getByLabel('打ち合わせ日',{exact:true}).fill('2027-11-02');
@@ -470,9 +468,9 @@ async function memberFlow({ page, context, db, password, step, screenshot, layou
     await expect(page.getByRole('heading',{name:'UI検証・各回別イベント',exact:true})).toBeVisible();
     const sid=Number(new URL(page.url()).pathname.split('/')[2]);
     await openSystemMenu();await page.getByRole('link',{name:'HOME',exact:true}).click();
-    const home=page.getByRole('list',{name:'HOMEの日程一覧',exact:true});
-    await expect(home.getByRole('link',{name:'UI検証・各回別イベント 第1回',exact:true})).toBeVisible();
-    await expect(home.getByRole('link',{name:'UI検証・各回別イベント 第2回',exact:true})).toBeVisible();
+    const home=page.locator('.app-workspace-content');
+    await expect(home.getByRole('heading',{name:'UI検証・各回別イベント 第1回',exact:true})).toBeVisible();
+    await expect(home.getByRole('heading',{name:'UI検証・各回別イベント 第2回',exact:true})).toBeVisible();
     await openSystemMenu();await page.getByRole('link',{name:'イベント一覧',exact:true}).click();
     await expect(page.getByRole('heading',{name:'UI検証・各回別イベント 第1回',exact:true})).toBeVisible();
     await expect(page.getByRole('heading',{name:'UI検証・各回別イベント 第2回',exact:true})).toBeVisible();

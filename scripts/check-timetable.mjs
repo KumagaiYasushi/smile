@@ -104,7 +104,7 @@ for(const [name,viewport] of [['timetable-desktop',{width:1280,height:900}],['ti
   await page.goto(base+'/');const colors={};for(const e of events){const cards=page.locator(`[data-event-type="${e.event_type}"]`);await expect(cards).toHaveCount(1);colors[e.event_type]=await cards.evaluate(el=>getComputedStyle(el).backgroundColor);}
   assert.equal(new Set(Object.values(colors)).size,4);await screenshot('event-colors');
   await page.goto(base+'/dashboard');for(const e of events){const cards=page.locator(`article[data-event-type="${e.event_type}"]`);await expect(cards.first()).toBeVisible();assert.equal(await cards.first().evaluate(el=>getComputedStyle(el).backgroundColor),colors[e.event_type]);}await layout('ダッシュボード');await screenshot('dashboard-colors');
-  await page.goto(base+'/home');for(const e of events){const row=page.locator(`li[data-event-type="${e.event_type}"]`).first();await expect(row).toBeVisible();assert.equal(await row.evaluate(el=>getComputedStyle(el).backgroundColor),colors[e.event_type]);}
+  await page.goto(base+'/home');for(const e of events){const row=page.locator(`[data-event-type="${e.event_type}"]`).first();await expect(row).toBeVisible();assert.equal(await row.evaluate(el=>getComputedStyle(el).backgroundColor),colors[e.event_type]);}
  });
  const event=events[2],endpoint=`${base}/api/seminars/${event.id}/timetable`;
  await page.goto(`${base}/seminars/${event.id}/timetable`);const chooser=page.getByRole('group',{name:'追加する項目',exact:true}),select=chooser.getByLabel('項目を選択',{exact:true});
