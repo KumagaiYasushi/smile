@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import TaskMailPanel from '@/components/TaskMailPanel';
+import TaskRoleLinkPanel from '@/components/TaskRoleLinkPanel';
 import type {TaskMailPhase} from '@/types/task-message';
 import { TASK_STATUS_LABELS, isTaskOverdue } from '@/types/task';
 import type { EventTask, TaskInput, TaskMember, TaskStatus, TaskHistory } from '@/types/task';
@@ -225,6 +226,7 @@ export default function TasksPage({ params }: { params: Promise<{ id: string }> 
         <button onClick={() => setHistoryId(historyId === task.id ? null : task.id)} aria-expanded={historyId === task.id} className="text-sky-700 underline">{historyId === task.id ? '履歴を閉じる' : '変更履歴'}</button>
         <button disabled={busy} onClick={() => remove(task)} className="text-red-700 underline">削除</button>
       </div>
+      <TaskRoleLinkPanel eventId={id} taskId={task.id} disabled={busy || editing !== undefined}/>
       <TaskMailPanel eventId={id} taskId={task.id} phase={mail.find(p=>p.task_id===task.id)?.phase} onChange={refresh}/>
       {historyId === task.id && <HistoryPanel seminarId={id} taskId={task.id} members={members} />}
     </article>)}</div>

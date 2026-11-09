@@ -39,7 +39,9 @@ html {
   scrollbar-gutter: stable;
 }
 html:has(form[data-stable-editor]),
-form[data-stable-editor] {
+form[data-stable-editor],
+html:has([data-member-editor]),
+[data-member-editor] {
   overflow-anchor: none;
 }
 
