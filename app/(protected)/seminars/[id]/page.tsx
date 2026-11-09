@@ -10,6 +10,7 @@ import { eventAttendanceText,eventFeeText } from '@/lib/event-presentation';
 import {eventSessionName,eventSessionDateText} from '@/types/event-session';
 import { formatEventDate, OCCURRENCE_LABELS } from '@/types/event-schedule';
 import SocialGatheringDetails from '@/components/SocialGatheringDetails';
+import {EventWeatherProvider, EventWeatherPanel} from '@/components/EventWeather';
 
 
 function formatCurrency(n: number) {
@@ -18,7 +19,8 @@ function formatCurrency(n: number) {
 
 type Props = { params: Promise<{ id: string }> };
 
-export default function SeminarDetailPage({ params }: Props) {
+export default function SeminarDetailPage(props: Props) {return <EventWeatherProvider><SeminarDetailContent {...props}/></EventWeatherProvider>;}
+function SeminarDetailContent({ params }: Props) {
   const { id } = use(params);
   const router = useRouter();
   const [seminar, setSeminar] = useState<Seminar | null>(null);
@@ -130,6 +132,8 @@ export default function SeminarDetailPage({ params }: Props) {
           </button>
         </div>
       </div>
+
+      <EventWeatherPanel event={seminar}/>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* 左カラム：基本情報 */}

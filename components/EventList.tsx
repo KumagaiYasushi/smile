@@ -1,6 +1,7 @@
 'use client';
 import {EVENT_COLORS} from '@/types/event-colors';
 import EventTypeLegend from '@/components/EventTypeLegend';
+import EventWeather, {EventWeatherProvider, WeatherAttribution} from '@/components/EventWeather';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -36,7 +37,8 @@ function ChecklistProgress({ seminar }: { seminar: Seminar }) {
 }
 
 
-export default function EventList({home=false}:{home?:boolean}) {
+export default function EventList({home=false}:{home?:boolean}) {return <EventWeatherProvider><EventListContent home={home}/></EventWeatherProvider>;}
+function EventListContent({home=false}:{home?:boolean}) {
   const [seminars, setSeminars] = useState<Seminar[]>([]);
   const [entries,setEntries]=useState<EventListEntry[]>([]),[error,setError]=useState(''),[kind,setKind]=useState<keyof typeof ENTRY_KIND_LABELS|'ALL'>('ALL');
   const [view,setView]=useState<'cards'|'rows'>(()=>{try{return typeof window!=='undefined'&&localStorage.getItem('smile-event-list-view')==='rows'?'rows':'cards';}catch{return 'cards';}});
@@ -85,7 +87,7 @@ export default function EventList({home=false}:{home?:boolean}) {
       ) : visible.length === 0 ? (
         <p className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">条件に一致する予定はありません</p>
       ) : view==='rows'?(
-        <div className="rounded-xl border border-slate-300 bg-slate-50 p-1 sm:p-2"><table aria-label="予定の行一覧" className="w-full table-fixed border-separate border-spacing-x-0 border-spacing-y-2 text-left text-sm"><thead className="bg-slate-800 text-white"><tr><th scope="col" className="w-[28%] rounded-l-lg p-2 sm:w-[24%] sm:p-3">日付</th><th scope="col" className="w-[40%] p-2 sm:w-[43%] sm:p-3">イベント名</th><th scope="col" className="rounded-r-lg p-2 sm:p-3">会場</th></tr></thead><tbody>{visible.map(entry=><tr key={entry.key} data-entry-kind={entry.kind} data-event-type={entry.event_type} className={`drop-shadow-sm ${EVENT_COLORS[entry.event_type].card}`}><td className="break-words rounded-l-xl border-y border-l-4 border-inherit bg-inherit p-2 align-top text-xs sm:p-3 sm:text-sm"><EntryDate entry={entry}/></td><td className="break-words border-y border-inherit bg-inherit p-2 align-top [overflow-wrap:anywhere] sm:p-3"><span className="mb-1 inline-block rounded-full bg-white px-2 py-0.5 text-xs font-bold">{ENTRY_KIND_LABELS[entry.kind]}</span><Link href={entry.href} className="block font-bold text-sky-950 underline">{entry.name}</Link>{entry.kind!=='EVENT'&&<span className="mt-1 block text-xs text-slate-700">{entry.parent_name}</span>}</td><td className="break-words rounded-r-xl border-y border-r border-inherit bg-inherit p-2 align-top text-xs [overflow-wrap:anywhere] sm:p-3 sm:text-sm"><LinkedText text={entry.venue}/></td></tr>)}</tbody></table></div>
+        <div className="rounded-xl border border-slate-300 bg-slate-50 p-1 sm:p-2"><table aria-label="予定の行一覧" className="w-full table-fixed border-separate border-spacing-x-0 border-spacing-y-2 text-left text-sm"><thead className="bg-slate-800 text-white"><tr><th scope="col" className="w-[28%] rounded-l-lg p-2 sm:w-[24%] sm:p-3">日付</th><th scope="col" className="w-[40%] p-2 sm:w-[43%] sm:p-3">イベント名</th><th scope="col" className="rounded-r-lg p-2 sm:p-3">会場</th></tr></thead><tbody>{visible.map(entry=><tr key={entry.key} data-entry-kind={entry.kind} data-event-type={entry.event_type} className={`drop-shadow-sm ${EVENT_COLORS[entry.event_type].card}`}><td className="break-words rounded-l-xl border-y border-l-4 border-inherit bg-inherit p-2 align-top text-xs sm:p-3 sm:text-sm"><EntryDate entry={entry}/></td><td className="break-words border-y border-inherit bg-inherit p-2 align-top [overflow-wrap:anywhere] sm:p-3"><span className="mb-1 inline-block rounded-full bg-white px-2 py-0.5 text-xs font-bold">{ENTRY_KIND_LABELS[entry.kind]}</span><Link href={entry.href} className="block font-bold text-sky-950 underline">{entry.name}</Link>{entry.kind==='EVENT'&&<EventWeather event={seminars.find(s=>s.id===entry.seminar_id)!} date={entry.date} compact/>}{entry.kind!=='EVENT'&&<span className="mt-1 block text-xs text-slate-700">{entry.parent_name}</span>}</td><td className="break-words rounded-r-xl border-y border-r border-inherit bg-inherit p-2 align-top text-xs [overflow-wrap:anywhere] sm:p-3 sm:text-sm"><LinkedText text={entry.venue}/></td></tr>)}</tbody></table></div>
       ) : (
         <div aria-label="登録済みイベント" className="grid min-w-0 grid-cols-1 gap-5 rounded-2xl border border-slate-300 bg-slate-100 p-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {visible.map(entry => {const seminar=seminars.find(s=>s.id===entry.seminar_id)!;const date=entry.date;
@@ -139,6 +141,7 @@ export default function EventList({home=false}:{home?:boolean}) {
                 </div>
               )}
 
+              <EventWeather event={seminar} date={date} compact/>
               <div className="mt-4 rounded-lg border border-sky-300 bg-white p-3">
                 <ChecklistProgress seminar={seminar} />
               </div>
@@ -162,6 +165,7 @@ export default function EventList({home=false}:{home?:boolean}) {
           );})}
         </div>
       )}
+      <WeatherAttribution/>
       {home&&<div className="mt-6 border-t border-slate-300 pt-5"><Link href="/settings" className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-xl border-2 border-slate-500 bg-slate-100 px-5 py-3 font-bold text-slate-900 hover:bg-slate-200 sm:w-auto"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>システム設定</Link></div>}
     </div>
   );
